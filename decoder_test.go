@@ -1,6 +1,9 @@
 package netflow
 
-import "net"
+import (
+	"fmt"
+	"net"
+)
 
 func ExampleDecoder() {
 	// Boiler plate UDP server
@@ -15,8 +18,8 @@ func ExampleDecoder() {
 		var msg = make([]byte, 8192)
 		if _, _, err := server.ReadFromUDP(msg); err == nil {
 			if d, err := decoder.Decode(msg); err != nil {
-				// Now use d.Next() or feed trough d.Flows()
-				_, _ = d.Next()
+				// Now feed trough d.Flows()
+				fmt.Println(d)
 			}
 		}
 	}
