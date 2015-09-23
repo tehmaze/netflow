@@ -2,7 +2,6 @@ package netflow
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io"
 )
@@ -17,29 +16,30 @@ type V9FlowHeader struct {
 	SourceID  uint32
 }
 
-func (h V9FlowHeader) Read(r io.Reader) (err error) {
+func (h V9FlowHeader) Read(r io.Reader) error {
 	if h.Version == 0 {
-		if err = binary.Read(r, binary.BigEndian, &h); err != nil {
-			return
+		var err error
+		if h.Version, err = readUint16(r); err != nil {
+			return err
 		}
 	}
 	return h.readAfterHeader(r)
 }
 
 func (h V9FlowHeader) readAfterHeader(r io.Reader) (err error) {
-	if err = binary.Read(r, binary.BigEndian, &h.Count); err != nil {
+	if h.Count, err = readUint16(r); err != nil {
 		return
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.SysUptime); err != nil {
+	if h.SysUptime, err = readUint32(r); err != nil {
 		return
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.UnixTime); err != nil {
+	if h.UnixTime, err = readUint32(r); err != nil {
 		return
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.Sequence); err != nil {
+	if h.Sequence, err = readUint32(r); err != nil {
 		return
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.SourceID); err != nil {
+	if h.SourceID, err = readUint32(r); err != nil {
 		return
 	}
 	return
@@ -55,14 +55,16 @@ type V9FlowSetHeader struct {
 	Length uint16
 }
 
-func (h *V9FlowSetHeader) Read(r io.Reader) (err error) {
-	if err = binary.Read(r, binary.BigEndian, &h.ID); err != nil {
-		return
+func (h *V9FlowSetHeader) Unmarshal(r io.Reader) error {
+	var err error
+	if h.ID, err = readUint16(r); err != nil {
+		return err
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.Length); err != nil {
-		return
+	if h.Length, err = readUint16(r); err != nil {
+		return err
 	}
-	return
+
+	return nil
 }
 
 // V9TemplateFlowSet is one or more Template Records that have been grouped together in an Export Packet.
@@ -72,21 +74,21 @@ type V9TemplateFlowSet struct {
 }
 
 // ReadRecords can be called after teh V9FlowSetHeader is read and will read the Template Records.
-func (tfs *V9TemplateFlowSet) ReadRecords(r io.Reader) (err error) {
+func (tfs *V9TemplateFlowSet) UnmarshalRecords(r io.Reader) error {
 	tfs.Records = make([]*V9TemplateRecord, 0)
 	for {
 		tr := new(V9TemplateRecord)
-		if err = tr.Read(r); err != nil {
+		if err := tr.Unmarshal(r); err != nil {
 			if err == io.EOF {
 				break
 			}
-			return
+			return err
 		}
 
 		tfs.Records = append(tfs.Records, tr)
 	}
 
-	return
+	return nil
 }
 
 // V9TemplateRecord defines the structure and interpretation of fields in a Flow Data Record.
@@ -107,13 +109,15 @@ type V9TemplateRecord struct {
 	Fields V9Fields
 }
 
-func (tr *V9TemplateRecord) DecodeFlowSet(dfs *V9DataFlowSet) (rs []V9FlowDataRecord, err error) {
+func (tr *V9TemplateRecord) DecodeFlowSet(dfs *V9DataFlowSet) ([]V9FlowDataRecord, error) {
 	if dfs.ID != tr.TemplateID {
-		err = fmt.Errorf("invalid template ID, expected %d, got %d", tr.TemplateID, dfs.ID)
-		return
+		return nil, fmt.Errorf("invalid template ID, expected %d, got %d", tr.TemplateID, dfs.ID)
 	}
 
-	buf := bytes.NewBuffer(dfs.Data)
+	var (
+		rs  = make([]V9FlowDataRecord, 0)
+		buf = bytes.NewBuffer(dfs.Data)
+	)
 
 parser:
 	// It's fine to leave up to 3 bytes in the buffer, as we must support padding
@@ -131,23 +135,24 @@ parser:
 		rs = append(rs, r)
 	}
 
-	return
+	return rs, nil
 }
 
-func (tr *V9TemplateRecord) Read(r io.Reader) (err error) {
-	if err = binary.Read(r, binary.BigEndian, &tr.TemplateID); err != nil {
-		return
+func (tr *V9TemplateRecord) Unmarshal(r io.Reader) error {
+	var err error
+	if tr.TemplateID, err = readUint16(r); err != nil {
+		return err
 	}
-	if err = binary.Read(r, binary.BigEndian, &tr.FieldCount); err != nil {
-		return
+	if tr.FieldCount, err = readUint16(r); err != nil {
+		return err
 	}
 
 	tr.Fields = make([]V9Field, tr.FieldCount)
-	if err = tr.Fields.ReadAll(r); err != nil {
-		return
+	if err = tr.Fields.UnmarshalAll(r); err != nil {
+		return err
 	}
 
-	return
+	return nil
 }
 
 // V9Field contains a type and a length.
@@ -160,12 +165,18 @@ type V9Field struct {
 }
 
 func (f *V9Field) Read(r io.Reader) (err error) {
-	return binary.Read(r, binary.BigEndian, f)
+	if f.Type, err = readUint16(r); err != nil {
+		return
+	}
+	if f.Length, err = readUint16(r); err != nil {
+		return
+	}
+	return
 }
 
 type V9Fields []V9Field
 
-func (fs V9Fields) ReadAll(r io.Reader) (err error) {
+func (fs V9Fields) UnmarshalAll(r io.Reader) (err error) {
 	for i := 0; i < len(fs); i++ {
 		if err = fs[i].Read(r); err != nil {
 			return
@@ -186,10 +197,10 @@ type V9DataFlowSet struct {
 	Data []byte
 }
 
-// ReadData can be called after the V9FlowSetHeader is read and will read the Data Flow Set data.
-func (dfs *V9DataFlowSet) ReadData(r io.Reader) (err error) {
+// UnmarshalData can be called after the V9FlowSetHeader is read and will read the Data Flow Set data.
+func (dfs *V9DataFlowSet) UnmarshalData(r io.Reader) (err error) {
 	dfs.Data = make([]byte, dfs.Length)
-	_, err = r.Read(dfs.Data)
+	_, err = io.ReadFull(r, dfs.Data)
 	return
 }
 
@@ -201,11 +212,11 @@ type V9OptionsTemplateFlowSet struct {
 	Records []*V9OptionsTemplateRecord
 }
 
-func (ofs *V9OptionsTemplateFlowSet) ReadRecords(r io.Reader) (err error) {
+func (ofs *V9OptionsTemplateFlowSet) UnmarshalRecords(r io.Reader) (err error) {
 	ofs.Records = make([]*V9OptionsTemplateRecord, 0)
 	for {
 		tr := new(V9OptionsTemplateRecord)
-		if err = tr.Read(r); err != nil {
+		if err = tr.Unmarshal(r); err != nil {
 			if err == io.EOF {
 				break
 			}
@@ -240,24 +251,24 @@ type V9OptionsTemplateRecord struct {
 	Options V9Fields
 }
 
-func (otr *V9OptionsTemplateRecord) Read(r io.Reader) (err error) {
-	if err = binary.Read(r, binary.BigEndian, &otr.TemplateID); err != nil {
+func (otr *V9OptionsTemplateRecord) Unmarshal(r io.Reader) (err error) {
+	if otr.TemplateID, err = readUint16(r); err != nil {
 		return
 	}
-	if err = binary.Read(r, binary.BigEndian, &otr.ScopeLength); err != nil {
+	if otr.ScopeLength, err = readUint16(r); err != nil {
 		return
 	}
-	if err = binary.Read(r, binary.BigEndian, &otr.OptionLength); err != nil {
+	if otr.OptionLength, err = readUint16(r); err != nil {
 		return
 	}
 
 	otr.Scopes = make(V9Fields, otr.ScopeLength)
-	if err = otr.Scopes.ReadAll(r); err != nil {
+	if err = otr.Scopes.UnmarshalAll(r); err != nil {
 		return
 	}
 
 	otr.Options = make(V9Fields, otr.OptionLength)
-	if err = otr.Options.ReadAll(r); err != nil {
+	if err = otr.Options.UnmarshalAll(r); err != nil {
 		return
 	}
 

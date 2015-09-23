@@ -1,9 +1,6 @@
 package netflow
 
-import (
-	"encoding/binary"
-	"io"
-)
+import "io"
 
 // V1Header is a NetFlow v1 header
 type V1Header struct {
@@ -14,29 +11,31 @@ type V1Header struct {
 	UnixNsecs uint32
 }
 
-func (h V1Header) Read(r io.Reader) (err error) {
+func (h V1Header) Unmarshal(r io.Reader) error {
 	if h.Version == 0 {
-		if err = binary.Read(r, binary.BigEndian, &h.Version); err != nil {
-			return
+		var err error
+		if h.Version, err = readUint16(r); err != nil {
+			return err
 		}
 	}
-	return h.readAfterHeader(r)
+	return h.unmarshalAfterHeader(r)
 }
 
-func (h V1Header) readAfterHeader(r io.Reader) (err error) {
-	if err = binary.Read(r, binary.BigEndian, &h.Count); err != nil {
-		return
+func (h V1Header) unmarshalAfterHeader(r io.Reader) (err error) {
+	if h.Count, err = readUint16(r); err != nil {
+		return err
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.SysUptime); err != nil {
-		return
+	if h.SysUptime, err = readUint32(r); err != nil {
+		return err
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.UnixSecs); err != nil {
-		return
+	if h.UnixSecs, err = readUint32(r); err != nil {
+		return err
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.UnixNsecs); err != nil {
-		return
+	if h.UnixNsecs, err = readUint32(r); err != nil {
+		return err
 	}
-	return
+
+	return nil
 }
 
 // V1FlowRecord is a NetFlow v1 Flow Record
@@ -75,8 +74,56 @@ type V1FlowRecord struct {
 	Reserved uint64
 }
 
-func (f *V1FlowRecord) Read(r io.Reader) (err error) {
-	return binary.Read(r, binary.BigEndian, f)
+func (f *V1FlowRecord) Unmarshal(r io.Reader) (err error) {
+	if f.SrcAddr, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.DstAddr, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.NextHop, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.Input, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.Output, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.Count, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.Bytes, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.First, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.Last, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.SrcPort, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.DstPort, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.Pad0, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.Protocol, err = readUint8(r); err != nil {
+		return err
+	}
+	if f.ToS, err = readUint8(r); err != nil {
+		return err
+	}
+	if f.Flags, err = readUint8(r); err != nil {
+		return err
+	}
+	if f.Reserved, err = readUint64(r); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (f *V1FlowRecord) SampleInterval() int { return 1 }

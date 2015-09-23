@@ -1,9 +1,6 @@
 package netflow
 
-import (
-	"encoding/binary"
-	"io"
-)
+import "io"
 
 // V8Header is a NetFlow version 8 header
 //
@@ -26,8 +23,25 @@ type V8FlowRecordHeader struct {
 	Last  uint32
 }
 
-func (h *V8FlowRecordHeader) Read(r io.Reader) (err error) {
-	return binary.Read(r, binary.BigEndian, h)
+func (h *V8FlowRecordHeader) Unmarshal(r io.Reader) error {
+	var err error
+	if h.Flows, err = readUint32(r); err != nil {
+		return err
+	}
+	if h.Count, err = readUint32(r); err != nil {
+		return err
+	}
+	if h.Bytes, err = readUint32(r); err != nil {
+		return err
+	}
+	if h.First, err = readUint32(r); err != nil {
+		return err
+	}
+	if h.Last, err = readUint32(r); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type V8RouterASFlowRecord struct {

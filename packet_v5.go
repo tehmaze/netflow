@@ -1,9 +1,6 @@
 package netflow
 
-import (
-	"encoding/binary"
-	"io"
-)
+import "io"
 
 // V5Header is a NetFlow v5 header
 //
@@ -16,32 +13,35 @@ type V5Header struct {
 	SamplingInterval uint16
 }
 
-func (h V5Header) Read(r io.Reader) (err error) {
+func (h V5Header) Unmarshal(r io.Reader) error {
 	if h.Version == 0 {
-		if err = binary.Read(r, binary.BigEndian, &h.Version); err != nil {
-			return
+		var err error
+		if h.Version, err = readUint16(r); err != nil {
+			return err
 		}
 	}
-	return h.readAfterHeader(r)
+	return h.unmarshalAfterHeader(r)
 }
 
-func (h V5Header) readAfterHeader(r io.Reader) (err error) {
-	if err = h.V1Header.Read(r); err != nil {
-		return
+func (h V5Header) unmarshalAfterHeader(r io.Reader) error {
+	if err := h.V1Header.Unmarshal(r); err != nil {
+		return err
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.FlowSequence); err != nil {
-		return
+	var err error
+	if h.FlowSequence, err = readUint32(r); err != nil {
+		return err
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.EngineType); err != nil {
-		return
+	if h.EngineType, err = readUint8(r); err != nil {
+		return err
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.EngineID); err != nil {
-		return
+	if h.EngineID, err = readUint8(r); err != nil {
+		return err
 	}
-	if err = binary.Read(r, binary.BigEndian, &h.SamplingInterval); err != nil {
-		return
+	if h.SamplingInterval, err = readUint16(r); err != nil {
+		return err
 	}
-	return
+
+	return nil
 }
 
 type V5FlowRecord struct {
@@ -87,6 +87,64 @@ type V5FlowRecord struct {
 	Reserved uint16
 }
 
-func (f *V5FlowRecord) Read(r io.Reader) (err error) {
-	return binary.Read(r, binary.BigEndian, f)
+func (f *V5FlowRecord) Unmarshal(r io.Reader) error {
+	var err error
+	if f.SrcAddr, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.DstAddr, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.NextHop, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.Input, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.Output, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.Count, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.Bytes, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.First, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.Last, err = readUint32(r); err != nil {
+		return err
+	}
+	if f.SrcPort, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.DstPort, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.Pad0, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.Protocol, err = readUint8(r); err != nil {
+		return err
+	}
+	if f.ToS, err = readUint8(r); err != nil {
+		return err
+	}
+	if f.SrcAS, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.DstAS, err = readUint16(r); err != nil {
+		return err
+	}
+	if f.SrcMask, err = readUint8(r); err != nil {
+		return err
+	}
+	if f.DstMask, err = readUint8(r); err != nil {
+		return err
+	}
+	if f.Reserved, err = readUint16(r); err != nil {
+		return err
+	}
+	return nil
 }

@@ -15,26 +15,27 @@ func NewV8Decoder(r io.Reader) *V8Decoder {
 }
 
 func (d *V8Decoder) DecodeHeader() (err error) {
-	return d.header.Read(d.Reader)
+	return d.header.Unmarshal(d.Reader)
 }
 
-func (d *V8Decoder) Flows(flows chan FlowRecord) (err error) {
+func (d *V8Decoder) Flows(flows chan FlowRecord) error {
 	if d.header.Version == 0 {
-		if err = d.DecodeHeader(); err != nil {
-			return
+		if err := d.DecodeHeader(); err != nil {
+			return err
 		}
 	}
 
 	for d.index < d.header.Count {
 		var flow FlowRecord
+		var err error
 		if flow, err = d.next(); err != nil {
-			return
+			return err
 		}
 
 		flows <- flow
 	}
 
-	return
+	return nil
 }
 
 func (d *V8Decoder) next() (f FlowRecord, err error) {
@@ -45,11 +46,11 @@ func (d *V8Decoder) SampleInterval() int {
 	return 0
 }
 
-func (d *V8Decoder) SetVersion(v uint16) (err error) {
+func (d *V8Decoder) SetVersion(v uint16) error {
 	if d.header.Version == versionUnknown {
 		d.header.Version = v
-		err = d.header.Read(d.Reader)
+		return d.header.Unmarshal(d.Reader)
 	}
 	d.header.Version = v
-	return
+	return nil
 }

@@ -14,47 +14,49 @@ func NewV5Decoder(r io.Reader) *V5Decoder {
 	}
 }
 
-func (d *V5Decoder) ensureHeader() (err error) {
+func (d *V5Decoder) ensureHeader() error {
 	if d.header.Version == versionUnknown {
-		err = d.header.Read(d.Reader)
+		return d.header.Unmarshal(d.Reader)
 	}
-	return
+	return nil
 }
 
-func (d *V5Decoder) ensureVersion() (err error) {
-	if err = d.ensureHeader(); err == nil {
-		if d.header.Version != 5 {
-			err = errorIncompatibleVersion(d.header.Version, 5)
-		}
+func (d *V5Decoder) ensureVersion() error {
+	if err := d.ensureHeader(); err != nil {
+		return err
 	}
-	return
+	if d.header.Version != 5 {
+		return errorIncompatibleVersion(d.header.Version, 5)
+	}
+	return nil
 }
 
-func (d *V5Decoder) DecodeHeader() (err error) {
-	return d.header.Read(d.Reader)
+func (d *V5Decoder) DecodeHeader() error {
+	return d.header.Unmarshal(d.Reader)
 }
 
-func (d *V5Decoder) Flows(flows chan FlowRecord) (err error) {
-	if err = d.ensureVersion(); err != nil {
-		return
+func (d *V5Decoder) Flows(flows chan FlowRecord) error {
+	if err := d.ensureVersion(); err != nil {
+		return err
 	}
 
 	for d.index < d.header.Count {
 		var flow FlowRecord
+		var err error
 		if flow, err = d.next(); err != nil {
-			return
+			return err
 		}
 
 		flows <- flow
 	}
 
-	return
+	return nil
 }
 
-func (d *V5Decoder) next() (f FlowRecord, err error) {
+func (d *V5Decoder) next() (FlowRecord, error) {
 	if d.header.Version == 0 {
-		if err = d.DecodeHeader(); err != nil {
-			return
+		if err := d.DecodeHeader(); err != nil {
+			return nil, err
 		}
 	}
 
@@ -64,18 +66,18 @@ func (d *V5Decoder) next() (f FlowRecord, err error) {
 
 	var flow = new(V5FlowRecord)
 	d.index++
-	return flow, flow.Read(d.Reader)
+	return flow, flow.Unmarshal(d.Reader)
 }
 
 func (d *V5Decoder) SampleInterval() int {
 	return int(d.header.SamplingInterval)
 }
 
-func (d *V5Decoder) SetVersion(v uint16) (err error) {
+func (d *V5Decoder) SetVersion(v uint16) error {
 	if d.header.Version == versionUnknown {
 		d.header.Version = v
-		err = d.header.Read(d.Reader)
+		return d.header.Unmarshal(d.Reader)
 	}
 	d.header.Version = v
-	return
+	return nil
 }

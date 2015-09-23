@@ -53,7 +53,7 @@ func (d *V9Decoder) parseFlowSets() (err error) {
 
 func (d *V9Decoder) parseFlowSet() (set interface{}, err error) {
 	var header V9FlowSetHeader
-	if err = header.Read(d.Reader); err != nil {
+	if err = header.Unmarshal(d.Reader); err != nil {
 		return
 	}
 
@@ -70,21 +70,21 @@ func (d *V9Decoder) parseFlowSet() (set interface{}, err error) {
 func (d *V9Decoder) parseTemplateFlowSet(h V9FlowSetHeader) (set interface{}, err error) {
 	tfs := new(V9TemplateFlowSet)
 	tfs.V9FlowSetHeader = h
-	err = tfs.ReadRecords(d.Reader)
+	err = tfs.UnmarshalRecords(d.Reader)
 	return
 }
 
 func (d *V9Decoder) parseOptionsTemplateFlowSet(h V9FlowSetHeader) (set interface{}, err error) {
 	ofs := new(V9OptionsTemplateFlowSet)
 	ofs.V9FlowSetHeader = h
-	err = ofs.ReadRecords(d.Reader)
+	err = ofs.UnmarshalRecords(d.Reader)
 	return
 }
 
 func (d *V9Decoder) parseDataFlowSet(h V9FlowSetHeader) (set interface{}, err error) {
 	dfs := new(V9DataFlowSet)
 	dfs.V9FlowSetHeader = h
-	err = dfs.ReadData(d.Reader)
+	err = dfs.UnmarshalData(d.Reader)
 	return dfs, err
 }
 

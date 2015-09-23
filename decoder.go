@@ -34,14 +34,16 @@ func NewDecoder() *Decoder {
 }
 
 // Decoder returns a version specific flow record decoder.
-func (d *Decoder) Decode(data []byte) (v VersionDecoder, err error) {
+func (d *Decoder) Decode(data []byte) (VersionDecoder, error) {
 	buffer := bytes.NewBuffer(data)
 
 	var version uint16
-	if err = binary.Read(buffer, binary.BigEndian, &version); err != nil {
-		return
+	var err error
+	if version, err = readUint16(buffer); err != nil {
+		return nil, err
 	}
 
+	var v VersionDecoder
 	switch version {
 	case 1:
 		v = NewV1Decoder(buffer)
@@ -52,48 +54,32 @@ func (d *Decoder) Decode(data []byte) (v VersionDecoder, err error) {
 	case 9:
 		v = NewV9Decoder(buffer)
 	default:
-		err = fmt.Errorf("netflow version %d is not supported", version)
-		return
+		return nil, fmt.Errorf("netflow version %d is not supported", version)
 	}
 
-	v.SetVersion(version)
-	return
+	return v, v.SetVersion(version)
 }
 
-type WriteBackReader struct {
-	io.Reader
-	buffer []byte
+func readUint8(r io.Reader) (uint8, error) {
+	var b [1]byte
+	_, err := io.ReadFull(r, b[:])
+	return b[0], err
 }
 
-func NewWriteBackReader(r io.Reader, data []byte) *WriteBackReader {
-	return &WriteBackReader{r, data}
+func readUint16(r io.Reader) (uint16, error) {
+	var b [2]byte
+	_, err := io.ReadFull(r, b[:])
+	return binary.BigEndian.Uint16(b[:]), err
 }
 
-func (w *WriteBackReader) Read(p []byte) (n int, err error) {
-	n = len(p)
-	if n == 0 {
-		return
-	}
-
-	var l = len(w.buffer)
-	// If the allocated buffer is larger than our internal buffer, read the
-	// entire buffer and continue reading
-	if n > l {
-		l = len(w.buffer)
-		copy(w.buffer, p)
-		w.buffer = []byte{}
-		n, err = w.Reader.Read(p[l:n])
-		n += l
-		return
-	}
-
-	// The allocated buffer is smaller than our internal buffer, so we just copy
-	// a partial slice and truncate our internal buffer
-	copy(w.buffer[:n], p)
-	w.buffer = w.buffer[n:len(w.buffer)]
-	return
+func readUint32(r io.Reader) (uint32, error) {
+	var b [4]byte
+	_, err := io.ReadFull(r, b[:])
+	return binary.BigEndian.Uint32(b[:]), err
 }
 
-func (w *WriteBackReader) Write(p []byte) {
-	w.buffer = append(w.buffer, p...)
+func readUint64(r io.Reader) (uint64, error) {
+	var b [8]byte
+	_, err := io.ReadFull(r, b[:])
+	return binary.BigEndian.Uint64(b[:]), err
 }
