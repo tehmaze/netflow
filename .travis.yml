@@ -11,3 +11,4 @@ install:
 
 script:
   - go build -v ./...
+  - go tool vet -all -v *.go
