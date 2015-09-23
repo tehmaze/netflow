@@ -53,6 +53,8 @@ func (d *Decoder) Decode(data []byte) (VersionDecoder, error) {
 		v = NewV8Decoder(buffer)
 	case 9:
 		v = NewV9Decoder(buffer)
+	case 10:
+		v = NewIPFIXDecoder(buffer)
 	default:
 		return nil, fmt.Errorf("netflow version %d is not supported", version)
 	}
