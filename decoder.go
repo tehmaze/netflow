@@ -83,3 +83,8 @@ func readUint64(r io.Reader) (uint64, error) {
 	_, err := io.ReadFull(r, b[:])
 	return binary.BigEndian.Uint64(b[:]), err
 }
+
+func readLongIPv4(r io.Reader) (LongIPv4, error) {
+	l, err := readUint32(r)
+	return LongIPv4(l), err
+}

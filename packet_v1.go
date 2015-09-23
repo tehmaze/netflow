@@ -1,6 +1,9 @@
 package netflow
 
-import "io"
+import (
+	"fmt"
+	"io"
+)
 
 // V1Header is a NetFlow v1 header
 type V1Header struct {
@@ -41,11 +44,11 @@ func (h *V1Header) unmarshalAfterHeader(r io.Reader) (err error) {
 // V1FlowRecord is a NetFlow v1 Flow Record
 type V1FlowRecord struct {
 	// SrcAddr is the Source IP address
-	SrcAddr uint32
+	SrcAddr LongIPv4
 	// DstAddr is the Destination IP address
-	DstAddr uint32
+	DstAddr LongIPv4
 	// NextHop is the IP address of next hop router
-	NextHop uint32
+	NextHop LongIPv4
 	// Input is the SNMP index of input interface
 	Input uint16
 	// Output is the SNMP index of output interface
@@ -74,14 +77,18 @@ type V1FlowRecord struct {
 	Reserved uint64
 }
 
+func (f *V1FlowRecord) String() string {
+	return fmt.Sprintf("%s:%d -> %s:%d", f.SrcAddr, f.SrcPort, f.DstAddr, f.DstPort)
+}
+
 func (f *V1FlowRecord) Unmarshal(r io.Reader) (err error) {
-	if f.SrcAddr, err = readUint32(r); err != nil {
+	if f.SrcAddr, err = readLongIPv4(r); err != nil {
 		return err
 	}
-	if f.DstAddr, err = readUint32(r); err != nil {
+	if f.DstAddr, err = readLongIPv4(r); err != nil {
 		return err
 	}
-	if f.NextHop, err = readUint32(r); err != nil {
+	if f.NextHop, err = readLongIPv4(r); err != nil {
 		return err
 	}
 	if f.Input, err = readUint16(r); err != nil {
