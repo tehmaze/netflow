@@ -11,7 +11,7 @@ type V1Header struct {
 	UnixNsecs uint32
 }
 
-func (h V1Header) Unmarshal(r io.Reader) error {
+func (h *V1Header) Unmarshal(r io.Reader) error {
 	if h.Version == 0 {
 		var err error
 		if h.Version, err = readUint16(r); err != nil {
@@ -21,7 +21,7 @@ func (h V1Header) Unmarshal(r io.Reader) error {
 	return h.unmarshalAfterHeader(r)
 }
 
-func (h V1Header) unmarshalAfterHeader(r io.Reader) (err error) {
+func (h *V1Header) unmarshalAfterHeader(r io.Reader) (err error) {
 	if h.Count, err = readUint16(r); err != nil {
 		return err
 	}

@@ -33,7 +33,7 @@ func NewDecoder() *Decoder {
 	return &Decoder{}
 }
 
-// Decoder returns a version specific flow record decoder.
+// Decode returns a version specific flow record decoder.
 func (d *Decoder) Decode(data []byte) (VersionDecoder, error) {
 	buffer := bytes.NewBuffer(data)
 

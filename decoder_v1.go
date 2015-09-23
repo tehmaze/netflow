@@ -4,13 +4,14 @@ import "io"
 
 type V1Decoder struct {
 	io.Reader
-	header V1Header
+	header *V1Header
 	index  uint16
 }
 
 func NewV1Decoder(r io.Reader) *V1Decoder {
 	return &V1Decoder{
 		Reader: r,
+		header: new(V1Header),
 	}
 }
 
