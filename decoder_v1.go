@@ -2,69 +2,44 @@ package netflow
 
 import "io"
 
+// V1Decoder can decode NetFlow version 1 packets.
 type V1Decoder struct {
 	io.Reader
-	header *V1Header
+	Header *V1Header
 	index  uint16
 }
 
-func NewV1Decoder(r io.Reader) *V1Decoder {
-	return &V1Decoder{
+// NewV1Decoder decodes the NetFlow version 1 packet header and sets up a decoder for the Export Records in the packet.
+func NewV1Decoder(r io.Reader) (*V1Decoder, error) {
+	d := &V1Decoder{
 		Reader: r,
-		header: new(V1Header),
+		Header: new(V1Header),
 	}
+	return d, d.Header.Unmarshal(d.Reader)
 }
 
-func (d *V1Decoder) DecodeHeader() error {
-	return d.header.Unmarshal(d.Reader)
+// Len returns the number of Export Records in the decoded packet.
+func (d *V1Decoder) Len() int {
+	return int(d.Header.Count)
 }
 
-func (d *V1Decoder) Flows(flows chan FlowRecord) error {
-	if d.header.Version == 0 {
-		if err := d.DecodeHeader(); err != nil {
-			return err
-		}
-	}
-
-	for d.index < d.header.Count {
-		var flow FlowRecord
-		var err error
-		if flow, err = d.next(); err != nil {
-			return err
-		}
-
-		flows <- flow
-	}
-
-	return nil
-}
-
-func (d *V1Decoder) next() (f FlowRecord, err error) {
-	if d.header.Version == 0 {
-		if err = d.DecodeHeader(); err != nil {
-			return
-		}
-	}
-
-	if d.index >= d.header.Count {
+// Next returns the next Export Record.
+func (d *V1Decoder) Next() (ExportRecord, error) {
+	if d.index == d.Header.Count {
 		return nil, io.EOF
 	}
 
-	var flow = new(V1FlowRecord)
 	d.index++
-	return flow, flow.Unmarshal(d.Reader)
+	record := new(V1FlowRecord)
+	return record, record.Unmarshal(d.Reader)
 }
 
-func (d *V1Decoder) SampleInterval() int {
+// SampleRate returns the guessed sampling rate. Not available in NetFlow version 1.
+func (d *V1Decoder) SampleRate() int {
 	return 1
 }
 
-func (d *V1Decoder) SetVersion(v uint16) error {
-	if d.header.Version == versionUnknown {
-		d.header.Version = v
-		return d.header.Unmarshal(d.Reader)
-	}
-
-	d.header.Version = v
-	return nil
+// Version returns the expected version word in the frame.
+func (d *V1Decoder) Version() uint16 {
+	return Version1
 }

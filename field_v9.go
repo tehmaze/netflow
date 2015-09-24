@@ -1,10 +1,10 @@
 package netflow
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"net"
-	"strconv"
 	"time"
 )
 
@@ -240,15 +240,15 @@ var v9fieldType = map[uint16]v9fieldTypeEntry{
 	PostNATDstTransportPort:    v9fieldTypeEntry{"POST_NAT_DST_TRANSPORT_PORT", 2, v9fieldToStringUInteger, v9fieldToUint16, "Post NAT (translated) destination port"},
 	NATOriginatingAddressRealm: v9fieldTypeEntry{"NAT_ORIGINATING_ADDRESS_REALM", 1, v9fieldToStringUInteger, v9fieldToUint8, "Address Realm"},
 	NATEvent:                   v9fieldTypeEntry{"NAT_EVENT", 1, v9fieldToStringUInteger, v9fieldToUint8, "Type of event"},
-	IngressVRFID:               v9fieldTypeEntry{"INGRESS_VRFID", 4, v9fieldToStringUInteger, v9fieldToUint32, "ID of the ingress VRF"},
-	EgressVRFID:                v9fieldTypeEntry{"EGRESS_VRFID", 4, v9fieldToStringUInteger, v9fieldToUint32, "ID of the egress VRF"},
+	IngressVRFID:               v9fieldTypeEntry{"INGRESS_VRFID", 2, v9fieldToStringUInteger, v9fieldToUint32, "ID of the ingress VRF"},
+	EgressVRFID:                v9fieldTypeEntry{"EGRESS_VRFID", 2, v9fieldToStringUInteger, v9fieldToUint32, "ID of the egress VRF"},
 	PostNATIPv6SrcAddr:         v9fieldTypeEntry{"POST_NAT_IPV6_SRC_ADDR", 16, v9fieldToStringIP, v9fieldToIP, "Post NAT (outside) source IPv6 address"},
 	PostNATIPv6DstAddr:         v9fieldTypeEntry{"POST_NAT_IPV6_DST_ADDR", 16, v9fieldToStringIP, v9fieldToIP, "Destination IPv6 address (post translation)"},
-	TimeStamp:                  v9fieldTypeEntry{"EGRESS_VRFID", 8, v9fieldToStringUInteger, v9fieldToTime, "Time stamp"},
-	PortRangeStart:             v9fieldTypeEntry{"EGRESS_VRFID", 2, v9fieldToStringUInteger, v9fieldToUint16, "Allocated port block start"},
-	PortRangeEnd:               v9fieldTypeEntry{"EGRESS_VRFID", 2, v9fieldToStringUInteger, v9fieldToUint16, "Allocated port block end"},
-	PortRangeStepSize:          v9fieldTypeEntry{"EGRESS_VRFID", 2, v9fieldToStringUInteger, v9fieldToUint16, "Step size of next port"},
-	PortRangeNumPorts:          v9fieldTypeEntry{"EGRESS_VRFID", 2, v9fieldToStringUInteger, v9fieldToUint16, "Number of ports"},
+	TimeStamp:                  v9fieldTypeEntry{"TIME_STAMP", 4, v9fieldToStringUInteger, v9fieldToTime, "Time stamp"},
+	PortRangeStart:             v9fieldTypeEntry{"PORT_RANGE_START", 2, v9fieldToStringUInteger, v9fieldToUint16, "Allocated port block start"},
+	PortRangeEnd:               v9fieldTypeEntry{"PORT_RANGE_END", 2, v9fieldToStringUInteger, v9fieldToUint16, "Allocated port block end"},
+	PortRangeStepSize:          v9fieldTypeEntry{"PORT_RANGE_STEP_SIZE", 2, v9fieldToStringUInteger, v9fieldToUint16, "Step size of next port"},
+	PortRangeNumPorts:          v9fieldTypeEntry{"PORT_RANGE_NUM_PORTS", 2, v9fieldToStringUInteger, v9fieldToUint16, "Number of ports"},
 }
 
 func v9fieldAsIs(data []byte) interface{} {
@@ -280,7 +280,7 @@ func v9fieldToTime(data []byte) interface{} {
 	for i := 0; i < len(data) && i < 8; i++ {
 		num = (num << 8) | int64(data[i])
 	}
-	return time.Unix(num, 0)
+	return time.Unix(num/1000, num%1000)
 }
 
 func v9fieldToUint8(data []byte) interface{} {
@@ -306,7 +306,8 @@ func v9fieldToUint32(data []byte) interface{} {
 	return num
 }
 
-func v9fieldToUint64(data []byte) (num uint64) {
+func v9fieldToUint64(data []byte) interface{} {
+	var num uint64
 	for i := 0; i < len(data) && i < 8; i++ {
 		num = (num << 8) | uint64(data[i])
 	}
@@ -314,12 +315,10 @@ func v9fieldToUint64(data []byte) (num uint64) {
 }
 
 func v9fieldToStringUInteger(data []byte) string {
-
 	if len(data) > 8 {
 		return "int64 overflow"
 	}
-
-	return strconv.FormatUint(v9fieldToUint64(data), 10)
+	return fmt.Sprintf("%d", binary.BigEndian.Uint64(data))
 }
 
 func v9fieldToStringHex(data []byte) string {
@@ -387,7 +386,7 @@ func v9fieldToStringICMPTypeCode(data []byte) string {
 }
 
 func v9fieldToStringMsecDuration(data []byte) string {
-	duration := time.Duration(v9fieldToUint64(data)) * time.Millisecond
+	duration := time.Duration(binary.BigEndian.Uint64(data)) * time.Millisecond
 	return duration.String()
 }
 

@@ -9,55 +9,35 @@ type IPFIXDecoder struct {
 	io.Reader
 	// Cache for looking up and storing templates. To be overridden by the caller.
 	//Cache    V9TemplateCache
-	header   *IPFIXMessageHeader
+	Header   *IPFIXMessageHeader
 	flowsets []interface{}
 }
 
-func NewIPFIXDecoder(r io.Reader) *IPFIXDecoder {
-	return &IPFIXDecoder{
+// NewIPFIXDecoder decodes the IPFIX packet header and sets up a decoder for the Export Records in the packet.
+func NewIPFIXDecoder(r io.Reader) (*IPFIXDecoder, error) {
+	d := &IPFIXDecoder{
 		Reader: r,
-		//Cache:  make(V9TemplateCache),
-		header: new(IPFIXMessageHeader),
+		Header: new(IPFIXMessageHeader),
 	}
+	return d, d.Header.Unmarshal(d.Reader)
 }
 
-func (d *IPFIXDecoder) ensureHeader() error {
-	if d.header.Version == versionUnknown {
-		return d.header.Unmarshal(d.Reader)
-	}
-
-	return nil
+func (d *IPFIXDecoder) Len() int {
+	return 0
 }
 
-func (d *IPFIXDecoder) ensureVersion() (err error) {
-	if err = d.ensureHeader(); err == nil {
-		if d.header.Version != 10 {
-			err = errorIncompatibleVersion(d.header.Version, 10)
-		}
-	}
-	return
+func (d *IPFIXDecoder) Next() (ExportRecord, error) {
+	return nil, nil
 }
 
-func (d *IPFIXDecoder) Flows(flows chan FlowRecord) error {
-	if err := d.ensureVersion(); err != nil {
-		return err
-	}
-
-	flows <- d.header
-
-	return nil
+func (d *IPFIXDecoder) NextFlow() (ExportRecord, error) {
+	return nil, nil
 }
 
-func (d *IPFIXDecoder) SampleInterval() int {
+func (d *IPFIXDecoder) SampleRate() int {
 	return 1
 }
 
-func (d *IPFIXDecoder) SetVersion(v uint16) error {
-	if d.header.Version == versionUnknown {
-		d.header.Version = v
-		return d.header.Unmarshal(d.Reader)
-	}
-
-	d.header.Version = v
-	return nil
+func (d *IPFIXDecoder) Version() uint16 {
+	return VersionIPFIX
 }

@@ -5,27 +5,25 @@ import (
 	"io"
 )
 
-// V7Header is a NetFlow version 7 (Catalyst 5000) header
-//
-// As specified at http://www.cisco.com/c/en/us/td/docs/net_mgmt/netflow_collection_engine/3-6/user/guide/format.html#wp1007543
-type V7Header struct {
+// V6Header is a NetFlow version 6 header
+type V6Header struct {
 	V1Header
-	FlowSequence uint32
-	Reserved     uint32
+	FlowSequence     uint32
+	EngineType       uint8
+	EngineID         uint8
+	SamplingInterval uint16
 }
 
-func (h *V7Header) GetVersion() uint16 {
+func (h *V6Header) GetVersion() uint16 {
 	return h.Version
 }
 
-func (h *V7Header) SetVersion(v uint16) {
+func (h *V6Header) SetVersion(v uint16) {
 	h.Version = v
 }
 
-// V7FlowRecord is a NetFlow version 7 (Catalyst 5000) Flow Record Format
-//
-// As specified at http://www.cisco.com/c/en/us/td/docs/net_mgmt/netflow_collection_engine/3-6/user/guide/format.html#wp1007604
-type V7FlowRecord struct {
+// V6FlowRecord is a NetFlow version 6 Flow Record Format
+type V6FlowRecord struct {
 	// SrcAddr is the Source IP address
 	SrcAddr LongIPv4
 	// DstAddr is the Destination IP address
@@ -49,7 +47,7 @@ type V7FlowRecord struct {
 	// DstPort is the TCP/UDP destination port number or equivalent
 	DstPort uint16
 	// Pad0 are unused bytes
-	Pad0 uint16
+	Pad0 uint8
 	// TCPFlags are the TCP header flags
 	TCPFlags uint8
 	// Protocol number (IP)
@@ -64,25 +62,23 @@ type V7FlowRecord struct {
 	SrcMask uint8
 	// DstMask are the destination address prefix mask bits
 	DstMask uint8
-	// Flags indicating, among other things, what flows are invalid
-	Flags uint16
-	// RouterSC is the IP address of the router that is bypassed by the Catalyst 5000 series switch. This is the same address the router uses when it sends NetFlow export packets. This IP address is propagated to all switches bypassing the router through the FCP protocol.
-	RouterSC LongIPv4
+	// Pad1 are unused bytes
+	Pad1 uint32
 }
 
-func (r *V7FlowRecord) Bytes() []byte {
+func (r *V6FlowRecord) Bytes() []byte {
 	return structPack(r)
 }
 
-func (r *V7FlowRecord) Len() int {
+func (r *V6FlowRecord) Len() int {
 	return structLen(r)
 }
 
-func (r *V7FlowRecord) String() string {
+func (r *V6FlowRecord) String() string {
 	return fmt.Sprintf("%s/%d:%d -> %s/%d:%d", r.SrcAddr, r.SrcMask, r.SrcPort, r.DstAddr, r.DstMask, r.DstPort)
 }
 
-func (r *V7FlowRecord) Unmarshal(h io.Reader) error {
+func (r *V6FlowRecord) Unmarshal(h io.Reader) error {
 	var err error
 	if r.SrcAddr, err = readLongIPv4(h); err != nil {
 		return err
@@ -117,7 +113,7 @@ func (r *V7FlowRecord) Unmarshal(h io.Reader) error {
 	if r.DstPort, err = readUint16(h); err != nil {
 		return err
 	}
-	if r.Pad0, err = readUint16(h); err != nil {
+	if r.Pad0, err = readUint8(h); err != nil {
 		return err
 	}
 	if r.Protocol, err = readUint8(h); err != nil {
@@ -138,10 +134,7 @@ func (r *V7FlowRecord) Unmarshal(h io.Reader) error {
 	if r.DstMask, err = readUint8(h); err != nil {
 		return err
 	}
-	if r.Flags, err = readUint16(h); err != nil {
-		return err
-	}
-	if r.RouterSC, err = readLongIPv4(h); err != nil {
+	if r.Pad1, err = readUint32(h); err != nil {
 		return err
 	}
 	return nil

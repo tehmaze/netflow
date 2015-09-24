@@ -91,7 +91,15 @@ type V9TemplateFlowSet struct {
 	Records []*V9TemplateRecord
 }
 
-// ReadRecords can be called after teh V9FlowSetHeader is read and will read the Template Records.
+func (tfs *V9TemplateFlowSet) Bytes() []byte {
+	return structPack(tfs)
+}
+
+func (tfs *V9TemplateFlowSet) Len() int {
+	return structLen(tfs)
+}
+
+// UnmarshalRecords can be called after the V9FlowSetHeader is read and will read the Template Records.
 func (tfs *V9TemplateFlowSet) UnmarshalRecords(buf *bytes.Buffer) error {
 	tfs.Records = make([]*V9TemplateRecord, 0)
 
@@ -124,6 +132,10 @@ type V9TemplateRecord struct {
 	Fields V9Fields
 }
 
+func (tr *V9TemplateRecord) Bytes() []byte {
+	return structPack(tr)
+}
+
 func (tr *V9TemplateRecord) DecodeFlowSet(dfs *V9DataFlowSet) ([]V9FlowDataRecord, error) {
 	if dfs.ID != tr.TemplateID {
 		return nil, fmt.Errorf("invalid template ID, expected %d, got %d", tr.TemplateID, dfs.ID)
@@ -142,6 +154,14 @@ func (tr *V9TemplateRecord) DecodeFlowSet(dfs *V9DataFlowSet) ([]V9FlowDataRecor
 	}
 
 	return rs, nil
+}
+
+func (tr *V9TemplateRecord) Len() int {
+	return structLen(tr)
+}
+
+func (tr *V9TemplateRecord) String() string {
+	return fmt.Sprintf("template id=%d, fields=%d", tr.TemplateID, tr.FieldCount)
 }
 
 func (tr *V9TemplateRecord) Unmarshal(buf *bytes.Buffer) error {
@@ -211,15 +231,12 @@ func (fs V9Fields) UnmarshalAll(r io.Reader) (err error) {
 type V9FlowDataRecord struct {
 	// List of Flow Data Record values stored in raw format as []byte
 	Values [][]byte
-
-	// Template for looking up the value types
-	Template *V9TemplateRecord
 }
 
-func (fdr V9FlowDataRecord) Map() map[string]interface{} {
+func (r V9FlowDataRecord) Map(tr *V9TemplateRecord) map[string]interface{} {
 	m := map[string]interface{}{}
-	for i, value := range fdr.Values {
-		f := fdr.Template.Fields[i]
+	for i, value := range r.Values {
+		f := tr.Fields[i]
 		if t, ok := v9fieldType[f.Type]; ok {
 			m[t.Name] = t.Value(value)
 		} else {
@@ -229,8 +246,17 @@ func (fdr V9FlowDataRecord) Map() map[string]interface{} {
 	return m
 }
 
-func (fdr *V9FlowDataRecord) String() string {
-	m := fdr.Map()
+func (r *V9FlowDataRecord) Bytes() []byte {
+	return structPack(r)
+}
+
+func (r *V9FlowDataRecord) Len() int {
+	return structLen(r)
+}
+
+/*
+func (r *V9FlowDataRecord) String() string {
+	m := r.Map()
 	if _, ok := m["IPV6_SRC_ADDR"]; ok {
 		return fmt.Sprintf("%s/%d:%d -> %s/%d:%d",
 			m["IPV6_SRC_ADDR"], m["SRC_MASK"], m["L4_SRC_PORT"],
@@ -240,11 +266,20 @@ func (fdr *V9FlowDataRecord) String() string {
 		m["IPV4_SRC_ADDR"], m["SRC_MASK"], m["L4_SRC_PORT"],
 		m["IPV4_DST_ADDR"], m["DST_MASK"], m["L4_DST_PORT"])
 }
+*/
 
 // V9DataFlowSet is one or more records, of the same type, that are grouped together in an Export Packet.
 type V9DataFlowSet struct {
 	V9FlowSetHeader
 	Data []byte
+}
+
+func (dfs *V9DataFlowSet) Bytes() []byte {
+	return structPack(dfs)
+}
+
+func (dfs *V9DataFlowSet) Len() int {
+	return structLen(dfs)
 }
 
 // V9OptionsTemplateFlowSet is one or more Options Template Records that have been grouped together in an Export Packet.
@@ -253,6 +288,14 @@ type V9OptionsTemplateFlowSet struct {
 
 	// List of Options Template Records
 	Records []*V9OptionsTemplateRecord
+}
+
+func (ofs *V9OptionsTemplateFlowSet) Bytes() []byte {
+	return structPack(ofs)
+}
+
+func (ofs *V9OptionsTemplateFlowSet) Len() int {
+	return structLen(ofs)
 }
 
 func (ofs *V9OptionsTemplateFlowSet) UnmarshalRecords(buf *bytes.Buffer) (err error) {

@@ -22,6 +22,22 @@ type IPFIXMessageHeader struct {
 	ObservationDomainID uint32
 }
 
+func (h *IPFIXMessageHeader) Bytes() []byte {
+	return structPack(h)
+}
+
+func (h *IPFIXMessageHeader) Len() int {
+	return structLen(h)
+}
+
+func (h *IPFIXMessageHeader) GetVersion() uint16 {
+	return h.Version
+}
+
+func (h *IPFIXMessageHeader) SetVersion(v uint16) {
+	h.Version = v
+}
+
 func (h *IPFIXMessageHeader) String() string {
 	return fmt.Sprintf("version=%d, length=%d, time=%s, seq=%d, odid=%d",
 		h.Version, h.Length, time.Unix(int64(h.ExportTime), 0), h.SequenceNumber, h.ObservationDomainID)

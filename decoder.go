@@ -16,14 +16,16 @@ type Decoder struct {
 	io.Reader
 }
 
-// VersionDecoder implements the actual version specific decoder.
-type VersionDecoder interface {
-	// Flows will decode all the flow records and stream them into the flows channel
-	Flows(chan FlowRecord) error
-	// SetVersion set the Version word in the packet header
-	SetVersion(uint16) error
-	// SampleInverval returns the sample interval in seconds
-	SampleInterval() int
+// FlowDecoder implements the actual version specific decoder.
+type FlowDecoder interface {
+	// Len returns the number of Export Records in the decoded packet.
+	Len() int
+	// Next returns the next Export Record in the decoded packet.
+	Next() (ExportRecord, error)
+	// Version returns the flow decoder version.
+	Version() uint16
+	// SampleRate returns the sample interval in seconds.
+	SampleRate() int
 }
 
 // NewDecoder creates a new deterministic decoder. It reads the first word to
@@ -34,59 +36,29 @@ func NewDecoder() *Decoder {
 }
 
 // Decode returns a version specific flow record decoder.
-func (d *Decoder) Decode(data []byte) (VersionDecoder, error) {
+func (d *Decoder) Decode(data []byte) (FlowDecoder, error) {
 	buffer := bytes.NewBuffer(data)
-
-	var version uint16
-	var err error
-	if version, err = readUint16(buffer); err != nil {
-		return nil, err
+	if buffer.Len() < 2 {
+		return nil, io.ErrShortBuffer
 	}
 
-	var v VersionDecoder
-	switch version {
+	v := binary.BigEndian.Uint16(buffer.Bytes()[:2])
+	switch v {
 	case 1:
-		v = NewV1Decoder(buffer)
+		return NewV1Decoder(buffer)
 	case 5:
-		v = NewV5Decoder(buffer)
+		return NewV5Decoder(buffer)
+	case 6:
+		return NewV6Decoder(buffer)
+	case 7:
+		return NewV7Decoder(buffer)
 	case 8:
-		v = NewV8Decoder(buffer)
+		return NewV8Decoder(buffer)
 	case 9:
-		v = NewV9Decoder(buffer)
+		return NewV9Decoder(buffer)
 	case 10:
-		v = NewIPFIXDecoder(buffer)
+		return NewIPFIXDecoder(buffer)
 	default:
-		return nil, fmt.Errorf("netflow version %d is not supported", version)
+		return nil, fmt.Errorf("netflow version %d is not supported", v)
 	}
-
-	return v, v.SetVersion(version)
-}
-
-func readUint8(r io.Reader) (uint8, error) {
-	var b [1]byte
-	_, err := io.ReadFull(r, b[:])
-	return b[0], err
-}
-
-func readUint16(r io.Reader) (uint16, error) {
-	var b [2]byte
-	_, err := io.ReadFull(r, b[:])
-	return binary.BigEndian.Uint16(b[:]), err
-}
-
-func readUint32(r io.Reader) (uint32, error) {
-	var b [4]byte
-	_, err := io.ReadFull(r, b[:])
-	return binary.BigEndian.Uint32(b[:]), err
-}
-
-func readUint64(r io.Reader) (uint64, error) {
-	var b [8]byte
-	_, err := io.ReadFull(r, b[:])
-	return binary.BigEndian.Uint64(b[:]), err
-}
-
-func readLongIPv4(r io.Reader) (LongIPv4, error) {
-	l, err := readUint32(r)
-	return LongIPv4(l), err
 }

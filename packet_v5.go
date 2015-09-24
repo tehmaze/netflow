@@ -58,10 +58,10 @@ type V5FlowRecord struct {
 	Input uint16
 	// Output is the SNMP index of output interface
 	Output uint16
-	// Count is the number of packets in the flow
-	Count uint32
-	// Bytes is the number of bytes in the flow
-	Bytes uint32
+	// Packets is the number of packets in the flow
+	Packets uint32
+	// Octets is the number of bytes in the flow
+	Octets uint32
 	// First is the SysUptime at start of flow
 	First uint32
 	// Last is the SysUptime at end of flow
@@ -90,67 +90,75 @@ type V5FlowRecord struct {
 	Reserved uint16
 }
 
-func (f *V5FlowRecord) String() string {
-	return fmt.Sprintf("%s/%d:%d -> %s/%d:%d", f.SrcAddr, f.SrcMask, f.SrcPort, f.DstAddr, f.DstMask, f.DstPort)
+func (r *V5FlowRecord) Bytes() []byte {
+	return structPack(r)
 }
 
-func (f *V5FlowRecord) Unmarshal(r io.Reader) error {
+func (r *V5FlowRecord) Len() int {
+	return structLen(r)
+}
+
+func (r *V5FlowRecord) String() string {
+	return fmt.Sprintf("%s/%d:%d -> %s/%d:%d", r.SrcAddr, r.SrcMask, r.SrcPort, r.DstAddr, r.DstMask, r.DstPort)
+}
+
+func (r *V5FlowRecord) Unmarshal(h io.Reader) error {
 	var err error
-	if f.SrcAddr, err = readLongIPv4(r); err != nil {
+	if r.SrcAddr, err = readLongIPv4(h); err != nil {
 		return err
 	}
-	if f.DstAddr, err = readLongIPv4(r); err != nil {
+	if r.DstAddr, err = readLongIPv4(h); err != nil {
 		return err
 	}
-	if f.NextHop, err = readLongIPv4(r); err != nil {
+	if r.NextHop, err = readLongIPv4(h); err != nil {
 		return err
 	}
-	if f.Input, err = readUint16(r); err != nil {
+	if r.Input, err = readUint16(h); err != nil {
 		return err
 	}
-	if f.Output, err = readUint16(r); err != nil {
+	if r.Output, err = readUint16(h); err != nil {
 		return err
 	}
-	if f.Count, err = readUint32(r); err != nil {
+	if r.Packets, err = readUint32(h); err != nil {
 		return err
 	}
-	if f.Bytes, err = readUint32(r); err != nil {
+	if r.Octets, err = readUint32(h); err != nil {
 		return err
 	}
-	if f.First, err = readUint32(r); err != nil {
+	if r.First, err = readUint32(h); err != nil {
 		return err
 	}
-	if f.Last, err = readUint32(r); err != nil {
+	if r.Last, err = readUint32(h); err != nil {
 		return err
 	}
-	if f.SrcPort, err = readUint16(r); err != nil {
+	if r.SrcPort, err = readUint16(h); err != nil {
 		return err
 	}
-	if f.DstPort, err = readUint16(r); err != nil {
+	if r.DstPort, err = readUint16(h); err != nil {
 		return err
 	}
-	if f.Pad0, err = readUint16(r); err != nil {
+	if r.Pad0, err = readUint16(h); err != nil {
 		return err
 	}
-	if f.Protocol, err = readUint8(r); err != nil {
+	if r.Protocol, err = readUint8(h); err != nil {
 		return err
 	}
-	if f.ToS, err = readUint8(r); err != nil {
+	if r.ToS, err = readUint8(h); err != nil {
 		return err
 	}
-	if f.SrcAS, err = readUint16(r); err != nil {
+	if r.SrcAS, err = readUint16(h); err != nil {
 		return err
 	}
-	if f.DstAS, err = readUint16(r); err != nil {
+	if r.DstAS, err = readUint16(h); err != nil {
 		return err
 	}
-	if f.SrcMask, err = readUint8(r); err != nil {
+	if r.SrcMask, err = readUint8(h); err != nil {
 		return err
 	}
-	if f.DstMask, err = readUint8(r); err != nil {
+	if r.DstMask, err = readUint8(h); err != nil {
 		return err
 	}
-	if f.Reserved, err = readUint16(r); err != nil {
+	if r.Reserved, err = readUint16(h); err != nil {
 		return err
 	}
 	return nil
