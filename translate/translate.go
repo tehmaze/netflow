@@ -8,7 +8,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/tehmaze/netflow/common/session"
+	"github.com/tehmaze/netflow/session"
 )
 
 // Builtin dictionary of information elements
