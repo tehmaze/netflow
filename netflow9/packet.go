@@ -6,8 +6,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/tehmaze/go-netflow/common/read"
-	"github.com/tehmaze/go-netflow/common/session"
+	"github.com/tehmaze/netflow/read"
+	"github.com/tehmaze/netflow/session"
 )
 
 const (

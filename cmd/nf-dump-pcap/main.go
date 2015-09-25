@@ -15,14 +15,14 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
-	"github.com/tehmaze/go-netflow"
-	"github.com/tehmaze/go-netflow/common/session"
-	"github.com/tehmaze/go-netflow/ipfix"
-	"github.com/tehmaze/go-netflow/netflow1"
-	"github.com/tehmaze/go-netflow/netflow5"
-	"github.com/tehmaze/go-netflow/netflow6"
-	"github.com/tehmaze/go-netflow/netflow7"
-	"github.com/tehmaze/go-netflow/netflow9"
+	"github.com/tehmaze/netflow"
+	"github.com/tehmaze/netflow/session"
+	"github.com/tehmaze/netflow/ipfix"
+	"github.com/tehmaze/netflow/netflow1"
+	"github.com/tehmaze/netflow/netflow5"
+	"github.com/tehmaze/netflow/netflow6"
+	"github.com/tehmaze/netflow/netflow7"
+	"github.com/tehmaze/netflow/netflow9"
 )
 
 func main() {

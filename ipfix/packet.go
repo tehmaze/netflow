@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tehmaze/go-netflow/common/read"
-	"github.com/tehmaze/go-netflow/common/session"
+	"github.com/tehmaze/netflow/read"
+	"github.com/tehmaze/netflow/session"
 )
 
 // IPFIX
@@ -534,7 +534,7 @@ func (otr *OptionsTemplateRecord) Unmarshal(r io.Reader) error {
 	}
 
 	if otr.ScopeFieldCount > otr.FieldCount {
-		return errProtocol("scope field count %d higher than field count %d", otr.ScopeFieldCount, otr.FieldCount)
+		return errProtocol(fmt.Sprintf("scope field count %d higher than field count %d", otr.ScopeFieldCount, otr.FieldCount))
 	}
 
 	buffer := new(bytes.Buffer)

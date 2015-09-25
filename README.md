@@ -1,8 +1,8 @@
-# go-netflow
+# netflow
 NetFlow version 1, 5, 7, 8, 9 &amp; 10 (IPFIX) support for Go
 
-[![Build Status](https://travis-ci.org/tehmaze/go-netflow.svg?branch=master)](https://travis-ci.org/tehmaze/go-netflow)
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tehmaze/go-netflow?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+[![Build Status](https://travis-ci.org/tehmaze/netflow.svg?branch=master)](https://travis-ci.org/tehmaze/netflow)
+[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tehmaze/netflow)
 
 ## Project status
 
@@ -17,4 +17,4 @@ untrusted environment.
 
 ## Help wanted!
 
-Please submit your pull requests and/or bug reports via [GitHub](https://github.com/tehmaze/go-netflow/issues).
+Please submit your pull requests and/or bug reports via [GitHub](https://github.com/tehmaze/netflow/issues).

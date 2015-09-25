@@ -2,18 +2,19 @@ package ipfix
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 
-	"github.com/tehmaze/go-netflow/common/session"
+	"github.com/tehmaze/netflow/session"
 )
 
 func errInvalidVersion(v uint16) error {
 	return fmt.Errorf("version %d is not a valid IPFIX message version", v)
 }
 
-func errProtocol(f string, v ...interface{}) error {
-	return fmt.Errorf("protocol error: "+f, v...)
+func errProtocol(f string) error {
+	return errors.New("protocol error: " + f)
 }
 
 func errTemplateNotFound(t uint16) error {

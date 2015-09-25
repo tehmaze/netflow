@@ -1,8 +1,10 @@
 package netflow9
 
 import (
-	"github.com/tehmaze/go-netflow/common/session"
-	"github.com/tehmaze/go-netflow/common/translate"
+	"fmt"
+
+	"github.com/tehmaze/netflow/session"
+	"github.com/tehmaze/netflow/translate"
 )
 
 type TranslatedField struct {
@@ -10,6 +12,10 @@ type TranslatedField struct {
 	Type  uint16
 	Value interface{}
 	Bytes []byte
+}
+
+func (tf TranslatedField) String() string {
+	return fmt.Sprintf("%s=%v", tf.Name, tf.Value)
 }
 
 type Translate struct {

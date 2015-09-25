@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/tehmaze/go-netflow/common/session"
+	"github.com/tehmaze/netflow/session"
 )
 
 func errInvalidVersion(v uint16) error {

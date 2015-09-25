@@ -1,8 +1,8 @@
 package ipfix
 
 import (
-	"github.com/tehmaze/go-netflow/common/session"
-	"github.com/tehmaze/go-netflow/common/translate"
+	"github.com/tehmaze/netflow/session"
+	"github.com/tehmaze/netflow/translate"
 )
 
 type TranslatedField struct {

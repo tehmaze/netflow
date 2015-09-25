@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/tehmaze/go-netflow/common/read"
+	"github.com/tehmaze/netflow/read"
 )
 
 const (
