@@ -92,7 +92,9 @@ func (t FieldType) minLength() int {
 		return 2
 	case Uint32, Int32, Float32, DateTimeSeconds:
 		return 4
-	case Uint64, Int64, Float64, DateTimeMilliseconds, DateTimeMicroseconds, DateTimeNanoseconds:
+	case Uint64, Int64:
+		return 4 // NetFlow v9 encodes in both 4 and 8 bytes
+	case Float64, DateTimeMilliseconds, DateTimeMicroseconds, DateTimeNanoseconds:
 		return 8
 	case MacAddress:
 		return 6
@@ -142,7 +144,12 @@ func Bytes(bs []byte, t FieldType) interface{} {
 	case Uint32:
 		return binary.BigEndian.Uint32(bs)
 	case Uint64:
-		return binary.BigEndian.Uint64(bs)
+		switch len(bs) {
+		case 4:
+			return uint64(binary.BigEndian.Uint32(bs))
+		case 8:
+			return binary.BigEndian.Uint64(bs)
+		}
 	case Int8:
 		return int8(bs[0])
 	case Int16:
@@ -150,7 +157,12 @@ func Bytes(bs []byte, t FieldType) interface{} {
 	case Int32:
 		return int32(binary.BigEndian.Uint32(bs))
 	case Int64:
-		return int64(binary.BigEndian.Uint64(bs))
+		switch len(bs) {
+		case 4:
+			return int64(binary.BigEndian.Uint32(bs))
+		case 8:
+			return int64(binary.BigEndian.Uint64(bs))
+		}
 	case Float32:
 		return math.Float32frombits(binary.BigEndian.Uint32(bs))
 	case Float64:
