@@ -6,6 +6,10 @@ go:
   - 1.5.1
   - tip
 
+os:
+  - linux
+  - osx
+
 addons:
   apt:
     packages:
