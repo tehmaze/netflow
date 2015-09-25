@@ -53,7 +53,7 @@ func (t *Translate) Record(dr *DataRecord) error {
 	}
 
 	for i, field := range tr.Fields {
-		if i > len(dr.Fields) {
+		if i >= len(dr.Fields) {
 			break
 		}
 		f := &dr.Fields[i]
