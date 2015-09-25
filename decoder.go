@@ -5,60 +5,62 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+
+	"github.com/tehmaze/go-netflow/common/session"
+	"github.com/tehmaze/go-netflow/ipfix"
+	"github.com/tehmaze/go-netflow/netflow1"
+	"github.com/tehmaze/go-netflow/netflow5"
+	"github.com/tehmaze/go-netflow/netflow6"
+	"github.com/tehmaze/go-netflow/netflow7"
+	"github.com/tehmaze/go-netflow/netflow9"
 )
 
-func errorIncompatibleVersion(v, e uint16) error {
-	return fmt.Errorf("netflow: incompatible protocol version %d, expected %d", v, e)
-}
-
-// Decoder is a deterministic decoder that can decode NetFlow versions 1, 5, 7, 8 and 9.
+// Decoder for NetFlow messages.
 type Decoder struct {
-	io.Reader
+	session.Session
 }
 
-// FlowDecoder implements the actual version specific decoder.
-type FlowDecoder interface {
-	// Len returns the number of Export Records in the decoded packet.
-	Len() int
-	// Next returns the next Export Record in the decoded packet.
-	Next() (ExportRecord, error)
-	// Version returns the flow decoder version.
-	Version() uint16
-	// SampleRate returns the sample interval in seconds.
-	SampleRate() int
+// Message generlized interface.
+type Message interface {
 }
 
-// NewDecoder creates a new deterministic decoder. It reads the first word to
-// determine the decoder version, for which a decoder can be requested with
-// the Decoder method.
-func NewDecoder() *Decoder {
-	return &Decoder{}
+// NewDecoder sets up a decoder suitable for reading NetFlow packets.
+func NewDecoder(s session.Session) *Decoder {
+	return &Decoder{s}
 }
 
-// Decode returns a version specific flow record decoder.
-func (d *Decoder) Decode(data []byte) (FlowDecoder, error) {
-	buffer := bytes.NewBuffer(data)
-	if buffer.Len() < 2 {
-		return nil, io.ErrShortBuffer
+// Read a single Netflow message from the network. If an error is returned,
+// there is no guarantee the following reads will be succesful.
+func (d *Decoder) Read(r io.Reader) (Message, error) {
+	data := [2]byte{}
+	if _, err := r.Read(data[:]); err != nil {
+		return nil, err
 	}
 
-	v := binary.BigEndian.Uint16(buffer.Bytes()[:2])
-	switch v {
-	case 1:
-		return NewV1Decoder(buffer)
-	case 5:
-		return NewV5Decoder(buffer)
-	case 6:
-		return NewV6Decoder(buffer)
-	case 7:
-		return NewV7Decoder(buffer)
-	case 8:
-		return NewV8Decoder(buffer)
-	case 9:
-		return NewV9Decoder(buffer)
-	case 10:
-		return NewIPFIXDecoder(buffer)
+	version := binary.BigEndian.Uint16(data[:])
+	buffer := bytes.NewBuffer(data[:])
+	mr := io.MultiReader(buffer, r)
+
+	switch version {
+	case netflow1.Version:
+		return netflow1.Read(mr)
+
+	case netflow5.Version:
+		return netflow5.Read(mr)
+
+	case netflow6.Version:
+		return netflow6.Read(mr)
+
+	case netflow7.Version:
+		return netflow7.Read(mr)
+
+	case netflow9.Version:
+		return netflow9.Read(mr, d.Session, nil)
+
+	case ipfix.Version:
+		return ipfix.Read(mr, d.Session, nil)
+
 	default:
-		return nil, fmt.Errorf("netflow version %d is not supported", v)
+		return nil, fmt.Errorf("netflow: unsupported version %d", version)
 	}
 }
