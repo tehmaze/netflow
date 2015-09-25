@@ -1,3 +1,12 @@
+/*
+Command nf-dump decodes NetFlow packets from UDP datagrams.
+
+Usage:
+		nf-dump [flags]
+
+Flags:
+		-addr string 	Listen address (default ":2055")
+*/
 package main
 
 import (

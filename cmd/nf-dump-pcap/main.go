@@ -1,3 +1,11 @@
+/*
+Command nf-dump-pcap decodes NetFlow packets from one or more PCAP files.
+
+Usage:
+		nf-dump-pcap [<file>[ .. <file>]]
+
+No flags are available.
+*/
 package main
 
 import (
