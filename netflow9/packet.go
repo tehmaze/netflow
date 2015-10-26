@@ -298,6 +298,14 @@ func (tr TemplateRecord) String() string {
 	return fmt.Sprintf("id=%d fields=%d (%s)", tr.TemplateID, tr.FieldCount, tr.Fields)
 }
 
+func (tr TemplateRecord) Size() int {
+	var size int
+	for _, f := range tr.Fields {
+		size += int(f.Length)
+	}
+	return size
+}
+
 func (tr *TemplateRecord) Unmarshal(r io.Reader) error {
 	if err := read.Uint16(&tr.TemplateID, r); err != nil {
 		return err
@@ -398,7 +406,7 @@ func (dfs *DataFlowSet) Unmarshal(r io.Reader, tr TemplateRecord, t *Translate) 
 	for buffer.Len() > 0 {
 		var dr = DataRecord{}
 		dr.TemplateID = tr.TemplateID
-		if err := dr.Unmarshal(buffer, tr.Fields, t); err != nil {
+		if err := dr.Unmarshal(bytes.NewBuffer(buffer.Next(tr.Size())), tr.Fields, t); err != nil {
 			return err
 		}
 		dfs.Records = append(dfs.Records, dr)
