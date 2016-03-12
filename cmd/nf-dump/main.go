@@ -16,13 +16,13 @@ import (
 	"net"
 
 	"github.com/tehmaze/netflow"
-	"github.com/tehmaze/netflow/session"
 	"github.com/tehmaze/netflow/ipfix"
 	"github.com/tehmaze/netflow/netflow1"
 	"github.com/tehmaze/netflow/netflow5"
 	"github.com/tehmaze/netflow/netflow6"
 	"github.com/tehmaze/netflow/netflow7"
 	"github.com/tehmaze/netflow/netflow9"
+	"github.com/tehmaze/netflow/session"
 )
 
 func main() {
@@ -40,8 +40,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	s := session.New()
-	d := netflow.NewDecoder(s)
+	decoders := make(map[string]*netflow.Decoder)
 	for {
 		buf := make([]byte, 8192)
 		var remote *net.UDPAddr
@@ -51,6 +50,13 @@ func main() {
 		}
 
 		log.Printf("received %d bytes from %s\n", len(buf), remote)
+
+		d, found := decoders[remote.String()]
+		if !found {
+			s := session.New()
+			d = netflow.NewDecoder(s)
+			decoders[remote.String()] = d
+		}
 
 		m, err := d.Read(bytes.NewBuffer(buf))
 		if err != nil {

@@ -8,7 +8,7 @@ import (
 func Dump(p *Packet) {
 	fmt.Println("NetFlow version 9 packet")
 	for _, ds := range p.DataFlowSets {
-		fmt.Println("  data set")
+		fmt.Printf("  data set template %d, length: %d\n", ds.Header.ID, ds.Header.Length)
 		if ds.Records == nil {
 			fmt.Printf("    %d raw bytes:\n", len(ds.Bytes))
 			fmt.Println(hex.Dump(ds.Bytes))
