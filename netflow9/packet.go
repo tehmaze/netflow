@@ -6,8 +6,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/tehmaze/netflow/read"
-	"github.com/tehmaze/netflow/session"
+	"github.com/scalingdata/netflow/read"
+	"github.com/scalingdata/netflow/session"
 )
 
 const (

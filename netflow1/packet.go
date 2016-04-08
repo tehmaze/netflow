@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/tehmaze/netflow/read"
+	"github.com/scalingdata/netflow/read"
 )
 
 const (
