@@ -3,8 +3,8 @@ package netflow9
 import (
 	"fmt"
 
-	"github.com/tehmaze/netflow/session"
-	"github.com/tehmaze/netflow/translate"
+	"github.com/scalingdata/netflow/session"
+	"github.com/scalingdata/netflow/translate"
 )
 
 type TranslatedField struct {
