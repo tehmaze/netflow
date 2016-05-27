@@ -73,6 +73,9 @@ func (h *PacketHeader) Unmarshal(r io.Reader) error {
 	if err := read.Uint32(&h.FlowSequence, r); err != nil {
 		return err
 	}
+	if err := read.Uint32(&h.Reserved, r); err != nil {
+		return err
+	}
 	return nil
 }
 
