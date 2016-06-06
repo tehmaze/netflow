@@ -403,7 +403,7 @@ func (dfs *DataFlowSet) Unmarshal(r io.Reader, tr TemplateRecord, t *Translate) 
 	buffer.ReadFrom(r)
 
 	dfs.Records = make([]DataRecord, 0)
-	for buffer.Len() > 0 {
+	for buffer.Len() >= 4 { // Continue until only padding alignment bytes left
 		var dr = DataRecord{}
 		dr.TemplateID = tr.TemplateID
 		if err := dr.Unmarshal(bytes.NewBuffer(buffer.Next(tr.Size())), tr.Fields, t); err != nil {
