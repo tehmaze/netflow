@@ -563,6 +563,8 @@ type DataSet struct {
 }
 
 func (ds *DataSet) Unmarshal(r io.Reader, tr TemplateRecord, t *Translate) error {
+	// We don't know how many records there are in a Data Set, so we'll keep
+	// reading until we exhausted the buffer.
 	buffer := new(bytes.Buffer)
 	buffer.ReadFrom(r)
 
@@ -571,7 +573,13 @@ func (ds *DataSet) Unmarshal(r io.Reader, tr TemplateRecord, t *Translate) error
 		var dr = DataRecord{}
 		dr.TemplateID = tr.TemplateID
 		if err := dr.Unmarshal(buffer, tr.Fields, t); err != nil {
-			return err
+			// If we hit EOF, we've exhausted the buffer. The current DataRecord is discarded,
+			// and we exit normally.
+			if err == io.EOF {
+				return nil
+			} else {
+				return err
+			}
 		}
 		ds.Records = append(ds.Records, dr)
 	}
@@ -585,18 +593,11 @@ type DataRecord struct {
 }
 
 func (dr *DataRecord) Unmarshal(r io.Reader, fss FieldSpecifiers, t *Translate) error {
-	// We don't know how many records there are in a Data Set, so we'll keep
-	// reading until we exhausted the buffer.
-	buffer := new(bytes.Buffer)
-	if _, err := buffer.ReadFrom(r); err != nil {
-		return err
-	}
-
 	dr.Fields = make(Fields, 0)
 	var err error
-	for i := 0; buffer.Len() > 0 && i < len(fss); i++ {
+	for i := 0; i < len(fss); i++ {
 		f := Field{}
-		if err = f.Unmarshal(buffer, fss[i]); err != nil {
+		if err = f.Unmarshal(r, fss[i]); err != nil {
 			return err
 		}
 		dr.Fields = append(dr.Fields, f)
