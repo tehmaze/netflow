@@ -25,6 +25,9 @@ import (
 	"github.com/tehmaze/netflow/session"
 )
 
+// Safe default
+var readSize = 2 << 16
+
 func main() {
 	listen := flag.String("addr", ":2055", "Listen address")
 	flag.Parse()
@@ -40,16 +43,21 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if err = server.SetReadBuffer(readSize); err != nil {
+		log.Fatal(err)
+	}
+
 	decoders := make(map[string]*netflow.Decoder)
 	for {
 		buf := make([]byte, 8192)
 		var remote *net.UDPAddr
-		if _, remote, err = server.ReadFromUDP(buf); err != nil {
+		var octets int
+		if octets, remote, err = server.ReadFromUDP(buf); err != nil {
 			log.Printf("error reading from %s: %v\n", remote, err)
 			continue
 		}
 
-		log.Printf("received %d bytes from %s\n", len(buf), remote)
+		log.Printf("received %d bytes from %s\n", octets, remote)
 
 		d, found := decoders[remote.String()]
 		if !found {
@@ -58,7 +66,7 @@ func main() {
 			decoders[remote.String()] = d
 		}
 
-		m, err := d.Read(bytes.NewBuffer(buf))
+		m, err := d.Read(bytes.NewBuffer(buf[:octets]))
 		if err != nil {
 			log.Println("decoder error:", err)
 			continue
