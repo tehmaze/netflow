@@ -2,7 +2,7 @@
 NetFlow version 1, 5, 7, 8, 9 &amp; 10 (IPFIX) support for Go
 
 [![Build Status](https://travis-ci.org/tehmaze/netflow.svg?branch=master)](https://travis-ci.org/tehmaze/netflow)
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tehmaze/netflow)
+[![GoDoc](https://godoc.org/github.com/tehmaze/netflow?status.svg)](https://godoc.org/github.com/tehmaze/netflow)
 
 ## Project status
 
