@@ -40,16 +40,21 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if err = server.SetReadBuffer(262144); err != nil {
+	    log.Fatal(err)
+	}
+
 	decoders := make(map[string]*netflow.Decoder)
 	for {
 		buf := make([]byte, 8192)
 		var remote *net.UDPAddr
-		if _, remote, err = server.ReadFromUDP(buf); err != nil {
+		var cnt int
+		if cnt, remote, err = server.ReadFromUDP(buf); err != nil {
 			log.Printf("error reading from %s: %v\n", remote, err)
 			continue
 		}
 
-		log.Printf("received %d bytes from %s\n", len(buf), remote)
+		log.Printf("received %d bytes from %s\n", cnt, remote)
 
 		d, found := decoders[remote.String()]
 		if !found {
