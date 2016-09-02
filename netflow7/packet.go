@@ -64,7 +64,7 @@ func (h *PacketHeader) Unmarshal(r io.Reader) error {
 	if err := read.Uint32(&u, r); err != nil {
 		return err
 	}
-	h.SysUptime = time.Duration(u) * time.Milliseconds
+	h.SysUptime = time.Duration(u) * time.Millisecond
 	var t uint64
 	if err := read.Uint64(&t, r); err != nil {
 		return err
