@@ -4,6 +4,7 @@ package translate
 
 import (
 	"encoding/binary"
+	"errors"
 	"math"
 	"net"
 	"time"
@@ -89,12 +90,16 @@ func (t FieldType) minLength() int {
 	case Uint8, Int8, Boolean:
 		return 1
 	case Uint16, Int16:
-		return 2
-	case Uint32, Int32, Float32, DateTimeSeconds:
+		return 1
+	case Uint32, Int32:
+		return 1
+	case Float32, DateTimeSeconds:
 		return 4
 	case Uint64, Int64:
-		return 4 // NetFlow v9 encodes in both 4 and 8 bytes
-	case Float64, DateTimeMilliseconds, DateTimeMicroseconds, DateTimeNanoseconds:
+		return 1
+	case Float64:
+		return 4 // Float64 can be encoded in 4 bytes though loss of precision may occur
+	case DateTimeMilliseconds, DateTimeMicroseconds, DateTimeNanoseconds:
 		return 8
 	case MacAddress:
 		return 6
@@ -129,6 +134,86 @@ type Key struct {
 
 type informationElements map[Key]InformationElementEntry
 
+var reducedSizeErr error = errors.New("Unable to read reduced size encoding: size not implemented")
+var tooManyBitsErr error = errors.New("Unable to read reduced size encoding: too many bits")
+
+// Helper method to read an unsigned reduced size field
+func reducedSizeReadUnsigned(bs []byte, maxBits int) (uint64, error) {
+	// Exit if `bs` has more bits than we can store
+	if len(bs)*8 > maxBits {
+		return 0, tooManyBitsErr
+	}
+
+	switch len(bs) {
+	case 1:
+		return uint64(bs[0]), nil
+	case 2:
+		return uint64(binary.BigEndian.Uint16(bs)), nil
+	case 3:
+		return uint64(uint32(bs[0])<<16 + uint32(bs[1])<<8 + uint32(bs[2])), nil
+	case 4:
+		return uint64(binary.BigEndian.Uint32(bs)), nil
+	case 8:
+		return binary.BigEndian.Uint64(bs), nil
+	}
+	return 0, reducedSizeErr
+}
+
+// Helper method to read a signed reduced size field
+func reducedSizeReadSigned(bs []byte, maxBits int) (int64, error) {
+	// Exit if `bs` has more bits than we can store
+	if len(bs)*8 > maxBits {
+		return 0, tooManyBitsErr
+	}
+
+	switch len(bs) {
+	case 1:
+		value := int8(bs[0])
+		return int64(value), nil
+	case 2:
+		value := int16(binary.BigEndian.Uint16(bs))
+		return int64(value), nil
+	case 4:
+		value := int32(binary.BigEndian.Uint32(bs))
+		return int64(value), nil
+	case 8:
+		return int64(binary.BigEndian.Uint64(bs)), nil
+	}
+	return 0, reducedSizeErr
+}
+
+// Read a reduced size field into its full size
+func reducedSizeRead(bs []byte, i interface{}) error {
+	var unsigned uint64
+	var signed int64
+	var err error
+
+	switch v := i.(type) {
+	case *uint16:
+		unsigned, err = reducedSizeReadUnsigned(bs, 16)
+		*v = uint16(unsigned)
+	case *uint32:
+		unsigned, err = reducedSizeReadUnsigned(bs, 32)
+		*v = uint32(unsigned)
+	case *uint64:
+		unsigned, err = reducedSizeReadUnsigned(bs, 64)
+		*v = uint64(unsigned)
+	case *int16:
+		signed, err = reducedSizeReadSigned(bs, 16)
+		*v = int16(signed)
+	case *int32:
+		signed, err = reducedSizeReadSigned(bs, 32)
+		*v = int32(signed)
+	case *int64:
+		signed, err = reducedSizeReadSigned(bs, 64)
+		*v = int64(signed)
+	default:
+		err = reducedSizeErr
+	}
+
+	return err
+}
+
 // Bytes translates a byte string to a go native type.
 func Bytes(bs []byte, t FieldType) interface{} {
 	if len(bs) < t.minLength() {
@@ -140,33 +225,46 @@ func Bytes(bs []byte, t FieldType) interface{} {
 	case Uint8:
 		return bs[0]
 	case Uint16:
-		return binary.BigEndian.Uint16(bs)
+		var i uint16
+		if err := reducedSizeRead(bs, &i); err == nil {
+			return i
+		}
 	case Uint32:
-		return binary.BigEndian.Uint32(bs)
+		var i uint32
+		if err := reducedSizeRead(bs, &i); err == nil {
+			return i
+		}
 	case Uint64:
-		switch len(bs) {
-		case 4:
-			return uint64(binary.BigEndian.Uint32(bs))
-		case 8:
-			return binary.BigEndian.Uint64(bs)
+		var i uint64
+		if err := reducedSizeRead(bs, &i); err == nil {
+			return i
 		}
 	case Int8:
 		return int8(bs[0])
 	case Int16:
-		return int16(binary.BigEndian.Uint16(bs))
+		var i int16
+		if err := reducedSizeRead(bs, &i); err == nil {
+			return i
+		}
 	case Int32:
-		return int32(binary.BigEndian.Uint32(bs))
+		var i int32
+		if err := reducedSizeRead(bs, &i); err == nil {
+			return i
+		}
 	case Int64:
-		switch len(bs) {
-		case 4:
-			return int64(binary.BigEndian.Uint32(bs))
-		case 8:
-			return int64(binary.BigEndian.Uint64(bs))
+		var i int64
+		if err := reducedSizeRead(bs, &i); err == nil {
+			return i
 		}
 	case Float32:
 		return math.Float32frombits(binary.BigEndian.Uint32(bs))
 	case Float64:
-		return math.Float64frombits(binary.BigEndian.Uint64(bs))
+		switch len(bs) {
+		case 4:
+			return float64(math.Float32frombits(binary.BigEndian.Uint32(bs)))
+		case 8:
+			return math.Float64frombits(binary.BigEndian.Uint64(bs))
+		}
 	case Boolean:
 		return bs[0] == 1
 	case Unknown, OctetArray:
