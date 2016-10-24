@@ -15,8 +15,8 @@ addons:
     - libpcap0.8-dev
 
 install:
-  # - go get -v golang.org/x/tools/cmd/vet
-  - go get golang.org/x/tools/cmd/cover
+  # TODO: Add coverage to project after adding tests
+  # - go get golang.org/x/tools/cmd/cover
   - go get -d -v ./...
 
 script:
