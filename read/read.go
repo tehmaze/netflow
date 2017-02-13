@@ -49,10 +49,10 @@ func Uint64(v *uint64, r io.Reader) error {
 }
 
 // VariableLength reads a variable length byte stream as per RFC 7011 section 7.
-func VariableLength(p []byte, r io.Reader) error {
+func VariableLength(p []byte, r io.Reader) ([]byte, error) {
 	var l0 uint8
 	if err := Uint8(&l0, r); err != nil {
-		return err
+		return nil, err
 	}
 
 	var l int
@@ -61,15 +61,14 @@ func VariableLength(p []byte, r io.Reader) error {
 	} else {
 		var l1 uint16
 		if err := Uint16(&l1, r); err != nil {
-			return err
+			return nil,err
 		}
 		l = int(l1)
 	}
 
 	p = make([]byte, l)
 	if _, err := r.Read(p); err != nil {
-		return err
+		return nil, err
 	}
-
-	return nil
+	return p, nil
 }
