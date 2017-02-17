@@ -214,7 +214,6 @@ func (h *MessageHeader) Unmarshal(r io.Reader) error {
 type FieldSpecifier struct {
 	InformationElementID uint16
 	Length               uint16
-	VariableLength       uint32
 	EnterpriseNumber     uint32
 	EnterpriseBitSet     bool
 }
@@ -619,7 +618,8 @@ type Field struct {
 
 func (f *Field) Unmarshal(r io.Reader, fs FieldSpecifier) error {
 	if fs.Length == VariableLength {
-		err := read.VariableLength(f.Bytes, r)
+		var err error
+		f.Bytes, err = read.VariableLength(f.Bytes, r)
 		return err
 	} else {
 		f.Bytes = make([]byte, fs.Length)
