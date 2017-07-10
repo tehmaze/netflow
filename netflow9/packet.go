@@ -47,10 +47,15 @@ type PacketHeader struct {
 
 func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate) error {
 	if debug {
-		debugLog.Printf("decoding %d flow sets\n", p.Header.Count)
+		debugLog.Printf("decoding %d flow sets, sequence number: %d\n", p.Header.Count, p.Header.SequenceNumber)
 	}
+	var records uint16 = 0
 
 	for i := uint16(0); i < p.Header.Count; i++ {
+		// We have all expected flows
+		if records >= p.Header.Count {
+			return nil
+		}
 		// Read the next set header
 		header := FlowSetHeader{}
 		if err := header.Unmarshal(r); err != nil {
@@ -91,8 +96,8 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 				tr.register(s)
 			}
 
+			records += 1
 			p.TemplateFlowSets = append(p.TemplateFlowSets, tfs)
-			return nil
 
 		case 1: // Options Template FlowSet
 			ofs := OptionsTemplateFlowSet{}
@@ -107,6 +112,7 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 				return err
 			}
 
+			records += 1
 			p.OptionsTemplateFlowSets = append(p.OptionsTemplateFlowSets, ofs)
 
 		default:
@@ -152,9 +158,8 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 			if err := dfs.Unmarshal(bytes.NewBuffer(data), tr, t); err != nil {
 				return err
 			}
-
+			records += uint16(len(dfs.Records))
 			p.DataFlowSets = append(p.DataFlowSets, dfs)
-			return nil
 		}
 	}
 
