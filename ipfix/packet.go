@@ -97,7 +97,7 @@ func (m *Message) UnmarshalSets(r io.Reader, s session.Session, t *Translate) er
 			m.TemplateSets = append(m.TemplateSets, ts)
 
 			for _, tr := range ts.Records {
-				tr.register(s)
+				tr.register(m.Header.ObservationDomainID, s)
 			}
 
 		case header.ID == 3: // Options Template set
@@ -132,7 +132,7 @@ func (m *Message) UnmarshalSets(r io.Reader, s session.Session, t *Translate) er
 				ds.Bytes = data
 				continue
 			}
-			if tm, ok = s.GetTemplate(header.ID); !ok {
+			if tm, ok = s.GetTemplate(m.Header.ObservationDomainID, header.ID); !ok {
 				if debug {
 					debugLog.Printf("no template for id=%d, storing %d raw bytes in data set\n", header.ID, len(data))
 				}
@@ -419,7 +419,7 @@ type TemplateRecord struct {
 	Fields     FieldSpecifiers
 }
 
-func (tr TemplateRecord) register(s session.Session) {
+func (tr TemplateRecord) register(observationDomainID uint32, s session.Session) {
 	if s == nil {
 		return
 	}
@@ -428,7 +428,7 @@ func (tr TemplateRecord) register(s session.Session) {
 	}
 	s.Lock()
 	defer s.Unlock()
-	s.AddTemplate(tr)
+	s.AddTemplate(observationDomainID, tr)
 }
 
 func (tr TemplateRecord) Bytes() []byte {
@@ -603,7 +603,7 @@ func (dr *DataRecord) Unmarshal(r io.Reader, fss FieldSpecifiers, t *Translate) 
 	}
 
 	if t != nil && len(dr.Fields) > 0 {
-		if err := t.Record(dr); err != nil {
+		if err := t.Record(dr, fss); err != nil {
 			return err
 		}
 	}

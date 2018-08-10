@@ -93,7 +93,7 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 			}
 
 			for _, tr := range tfs.Records {
-				tr.register(s)
+				tr.register(p.Header.SourceID, s)
 			}
 
 			records += 1
@@ -141,7 +141,7 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 				dfs.Bytes = data
 				continue
 			}
-			if tm, ok = s.GetTemplate(header.ID); !ok {
+			if tm, ok = s.GetTemplate(p.Header.SourceID, header.ID); !ok {
 				if debug {
 					debugLog.Printf("no template for id=%d, storing %d raw bytes in data set\n", header.ID, len(data))
 				}
@@ -283,7 +283,7 @@ type TemplateRecord struct {
 	Fields     FieldSpecifiers
 }
 
-func (tr TemplateRecord) register(s session.Session) {
+func (tr TemplateRecord) register(sourceID uint32, s session.Session) {
 	if s == nil {
 		return
 	}
@@ -292,7 +292,7 @@ func (tr TemplateRecord) register(s session.Session) {
 	}
 	s.Lock()
 	defer s.Unlock()
-	s.AddTemplate(tr)
+	s.AddTemplate(sourceID, tr)
 }
 
 func (tr TemplateRecord) ID() uint16 {
@@ -447,7 +447,7 @@ func (dr *DataRecord) Unmarshal(r io.Reader, fss FieldSpecifiers, t *Translate) 
 	}
 
 	if t != nil && len(dr.Fields) > 0 {
-		if err := t.Record(dr); err != nil {
+		if err := t.Record(dr, fss); err != nil {
 			return err
 		}
 	}
