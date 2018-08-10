@@ -21,25 +21,8 @@ func NewTranslate(s session.Session) *Translate {
 	return &Translate{translate.NewTranslate(s)}
 }
 
-func (t *Translate) Record(dr *DataRecord) error {
-	if t.Session == nil {
-		return nil
-	}
-	var (
-		tm session.Template
-		tr TemplateRecord
-		ok bool
-	)
-	if tm, ok = t.Session.GetTemplate(dr.TemplateID); !ok {
-		if debug {
-			debugLog.Printf("no template for id=%d, can't translate field\n", dr.TemplateID)
-		}
-		return nil
-	}
-	if tr, ok = tm.(TemplateRecord); !ok {
-		return nil
-	}
-	if tr.Fields == nil {
+func (t *Translate) Record(dr *DataRecord, fss FieldSpecifiers) error {
+	if fss == nil {
 		if debug {
 			debugLog.Printf("no fields in template id=%d, can't translate\n", dr.TemplateID)
 		}
@@ -47,10 +30,10 @@ func (t *Translate) Record(dr *DataRecord) error {
 	}
 
 	if debug {
-		debugLog.Printf("translating %d/%d fields\n", len(dr.Fields), len(tr.Fields))
+		debugLog.Printf("translating %d/%d fields\n", len(dr.Fields), len(fss))
 	}
 
-	for i, field := range tr.Fields {
+	for i, field := range fss {
 		if i > len(dr.Fields) {
 			break
 		}
