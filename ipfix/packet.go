@@ -132,7 +132,10 @@ func (m *Message) UnmarshalSets(r io.Reader, s session.Session, t *Translate) er
 				ds.Bytes = data
 				continue
 			}
-			if tm, ok = s.GetTemplate(header.ID); !ok {
+			s.RLock()
+			tm, ok = s.GetTemplate(header.ID)
+			s.RUnlock()
+			if !ok {
 				if debug {
 					debugLog.Printf("no template for id=%d, storing %d raw bytes in data set\n", header.ID, len(data))
 				}
