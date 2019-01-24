@@ -11,6 +11,8 @@ type Template interface {
 type Session interface {
 	Lock()
 	Unlock()
+	RLock()
+	RUnlock()
 
 	// To keep track of maximum record sizes per template
 	GetRecordSize(uint16) (size int, found bool)
@@ -22,25 +24,16 @@ type Session interface {
 }
 
 type basicSession struct {
-	mutex     *sync.Mutex
+	sync.RWMutex
 	templates map[uint16]Template
 	sizes     map[uint16]int
 }
 
 func New() *basicSession {
 	return &basicSession{
-		mutex:     &sync.Mutex{},
 		templates: make(map[uint16]Template, 65536),
 		sizes:     make(map[uint16]int, 65536),
 	}
-}
-
-func (s *basicSession) Lock() {
-	s.mutex.Lock()
-}
-
-func (s *basicSession) Unlock() {
-	s.mutex.Unlock()
 }
 
 func (s *basicSession) GetRecordSize(tid uint16) (size int, found bool) {
