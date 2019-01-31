@@ -35,7 +35,6 @@ func (t *Translate) Record(dr *DataRecord) error {
 	}
 	var (
 		tm session.Template
-		tr TemplateRecord
 		ok bool
 	)
 	t.Session.RLock()
@@ -47,10 +46,8 @@ func (t *Translate) Record(dr *DataRecord) error {
 		return nil
 	}
 	t.Session.RUnlock()
-	if tr, ok = tm.(TemplateRecord); !ok {
-		return nil
-	}
-	if tr.Fields == nil {
+	fields := tm.GetFields()
+	if fields == nil {
 		if debug {
 			debugLog.Printf("no fields in template id=%d, can't translate\n", dr.TemplateID)
 		}
@@ -58,24 +55,49 @@ func (t *Translate) Record(dr *DataRecord) error {
 	}
 
 	if debug {
-		debugLog.Printf("translating %d/%d fields\n", len(dr.Fields), len(tr.Fields))
+		debugLog.Printf("translating %d/%d fields\n", len(dr.Fields), len(fields))
 	}
 
-	for i, field := range tr.Fields {
+	option_template, is_option := tm.(*OptionTemplateRecord)
+	if(is_option) {
+		dr.OptionScopes = make([]session.OptionScope, len(option_template.Scopes))
+		for i, scope_template := range option_template.Scopes {
+			scope := &dr.OptionScopes[i]
+			scope.Type = scope_template.Type
+			switch(scope.Type) {
+				case session.SCOPE_SYSTEM:
+					// Do nothing, there's no value for system scope
+				case session.SCOPE_INTERFACE:
+					scope.Index = translate.Bytes(dr.Fields[i].Bytes, translate.Uint16).(uint16)
+				case session.SCOPE_LINECARD:
+					// TODO:  Figure out data length/type and do something with this
+					continue
+				case session.SCOPE_NETFLOWCACHE:
+					// TODO:  Figure out data length/type and do something with this
+					continue
+				case session.SCOPE_TEMPLATE:
+					// TODO:  Figure out data length/type and do something with this
+					continue
+			}
+		}
+	}
+
+	for i, field := range fields {
 		if i >= len(dr.Fields) {
 			break
 		}
 		f := &dr.Fields[i]
 		f.Translated = &TranslatedField{}
-		f.Translated.Type = field.Type
+		f.Translated.Type = field.GetType()
 
-		if element, ok := t.Translate.Key(translate.Key{0, field.Type}); ok {
+		if element, ok := t.Translate.Key(translate.Key{0, field.GetType()}); ok {
 			f.Translated.Name = element.Name
 			f.Translated.Value = translate.Bytes(dr.Fields[i].Bytes, element.Type)
 		} else if debug {
-			debugLog.Printf("no translator element for {0, %d}\n", field.Type)
+			debugLog.Printf("no translator element for {0, %d}\n", field.GetType())
 		}
 	}
 
 	return nil
 }
+
