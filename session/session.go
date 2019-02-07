@@ -63,11 +63,6 @@ type Option struct {
 }
 
 type Session interface {
-	Lock()
-	Unlock()
-	RLock()
-	RUnlock()
-
 	// To keep track of maximum record sizes per template
 	GetRecordSize(uint16) (size int, found bool)
 	SetRecordSize(uint16, int)
