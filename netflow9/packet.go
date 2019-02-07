@@ -61,7 +61,7 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 		header := FlowSetHeader{}
 		if err := header.Unmarshal(r); err != nil {
 			if(debug) {
-				debugLog.Println("failed to read flow set header:", err)
+				debugLog.Printf("failed to read flow set header %d/%d: %s\n", (i + 1), p.Header.Count, err)
 			}
 			return err
 		}
@@ -142,6 +142,9 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 				return io.ErrShortBuffer
 			}
 			data := make([]byte, int(dfs.Header.Length)-dfs.Header.Len())
+			if(debug) {
+				debugLog.Printf("Reading %d bytes for DataFlowSet\n", len(data))
+			}
 			if _, err := r.Read(data); err != nil {
 				return err
 			}
