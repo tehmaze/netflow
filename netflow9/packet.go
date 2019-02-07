@@ -189,10 +189,11 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 						for _, scope := range record.OptionScopes {
 							for _, field := range record.Fields {
 								s.Lock()
-								s.SetOption(field.Type, &session.Option{
+								s.SetOption(0, field.Type, &session.Option{
 									TemplateID: header.ID,
 									Scope: scope,
 									Bytes: field.Bytes,
+									EnterpriseNumber: 0,
 									Type: field.Type,
 									Value: field.Translated.Value,
 								})
