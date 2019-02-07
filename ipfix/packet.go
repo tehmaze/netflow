@@ -136,9 +136,7 @@ func (m *Message) UnmarshalSets(r io.Reader, s session.Session, t *Translate) er
 				ds.Bytes = data
 				continue
 			}
-			s.RLock()
 			tm, ok = s.GetTemplate(header.ID)
-			s.RUnlock()
 			if !ok {
 				if debug {
 					debugLog.Printf("no template for id=%d, storing %d raw bytes in data set\n", header.ID, len(data))
@@ -175,7 +173,6 @@ func (m *Message) UnmarshalSets(r io.Reader, s session.Session, t *Translate) er
 										field.Translated.Value,
 									)
 								}
-								s.Lock()
 								s.SetOption(field.Translated.EnterpriseNumber, field.Translated.InformationElementID, &session.Option{
 									TemplateID: header.ID,
 									Scope: session.OptionScope{1, 0}, // TODO:  Once again, implement this for realsies
@@ -184,7 +181,6 @@ func (m *Message) UnmarshalSets(r io.Reader, s session.Session, t *Translate) er
 									Type: field.Translated.InformationElementID,
 									Value: field.Translated.Value,
 								})
-								s.Unlock()
 							}
 						}
 					}
@@ -474,8 +470,6 @@ func (tr *TemplateRecord) register(s session.Session) {
 	if(debug) {
 		debugLog.Println("register template:", tr)
 	}
-	s.Lock()
-	defer s.Unlock()
 	s.AddTemplate(tr)
 }
 
@@ -618,8 +612,6 @@ func (this *OptionsTemplateRecord) register(s session.Session) {
 	if debug {
 		debugLog.Println("register options template:", this)
 	}
-	s.Lock()
-	defer s.Unlock()
 	s.AddTemplate(this)
 }
 

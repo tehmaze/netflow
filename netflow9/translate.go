@@ -37,15 +37,12 @@ func (t *Translate) Record(dr *DataRecord) error {
 		tm session.Template
 		ok bool
 	)
-	t.Session.RLock()
 	if tm, ok = t.Session.GetTemplate(dr.TemplateID); !ok {
-		t.Session.RUnlock()
 		if debug {
 			debugLog.Printf("no template for id=%d, can't translate field\n", dr.TemplateID)
 		}
 		return nil
 	}
-	t.Session.RUnlock()
 	fields := tm.GetFields()
 	if fields == nil {
 		if debug {

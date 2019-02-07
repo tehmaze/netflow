@@ -162,9 +162,7 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 				dfs.Bytes = data
 				continue
 			}
-			s.RLock()
 			tm, ok = s.GetTemplate(header.ID)
-			s.RUnlock()
 			if !ok {
 				if(debug) {
 					debugLog.Printf("no template for id=%d, storing %d raw bytes in data set\n", header.ID, len(data))
@@ -191,7 +189,6 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 						}
 						for _, scope := range record.OptionScopes {
 							for _, field := range record.Fields {
-								s.Lock()
 								s.SetOption(0, field.Type, &session.Option{
 									TemplateID: header.ID,
 									Scope: scope,
@@ -200,7 +197,6 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 									Type: field.Type,
 									Value: field.Translated.Value,
 								})
-								s.Unlock()
 							}
 						}
 					}
@@ -336,8 +332,6 @@ func (tr *TemplateRecord) register(s session.Session) {
 	if debug {
 		debugLog.Println("register template:", tr)
 	}
-	s.Lock()
-	defer s.Unlock()
 	s.AddTemplate(tr)
 }
 
@@ -497,8 +491,6 @@ func (this *OptionTemplateRecord) register(s session.Session) {
 	if(debug) {
 		debugLog.Println("register option template:", this)
 	}
-	s.Lock()
-	defer s.Unlock()
 	s.AddTemplate(this)
 }
 
