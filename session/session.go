@@ -2,6 +2,7 @@
 // decoders that need to track templates bound to a session.
 package session
 
+import "fmt"
 import "sync"
 
 const (
@@ -43,6 +44,11 @@ type Field interface {
 	GetBytes() []byte
 }
 
+type TypeID struct {
+	EnterpriseNumber uint32
+	Type uint16
+}
+
 type OptionScope struct {
 	Type uint16
 	Index uint16
@@ -51,6 +57,7 @@ type OptionScope struct {
 type Option struct {
 	TemplateID uint16
 	Scope OptionScope
+	EnterpriseNumber uint32
 	Type uint16
 	Value interface{}
 	Bytes []byte
@@ -69,22 +76,22 @@ type Session interface {
 	// To keep track of templates
 	AddTemplate(Template)
 	GetTemplate(uint16) (t Template, found bool)
-	SetOption(uint16, *Option)
-	GetOption(uint16, uint16, uint16) *Option
+	SetOption(uint32, uint16, *Option)
+	GetOption(uint32, uint16, uint16, uint16) *Option
 }
 
 type basicSession struct {
 	sync.RWMutex
 	templates map[uint16]Template
 	sizes     map[uint16]int
-	options   map[uint16]map[OptionScope]*Option
+	options   map[TypeID]map[OptionScope]*Option
 }
 
 func New() *basicSession {
 	return &basicSession{
 		templates: make(map[uint16]Template, 65536),
 		sizes:     make(map[uint16]int, 65536),
-		options:   make(map[uint16]map[OptionScope]*Option, 256),
+		options:   make(map[TypeID]map[OptionScope]*Option, 256),
 	}
 }
 
@@ -108,17 +115,19 @@ func (s *basicSession) GetTemplate(id uint16) (t Template, found bool) {
 	return
 }
 
-func (this *basicSession) SetOption(field_id uint16, option *Option) {
-	options, found := this.options[field_id]
+func (this *basicSession) SetOption(enterprise_number uint32, field_id uint16, option *Option) {
+	fmt.Printf("basicSession::SetOption(): (%d, %d) = %v\n", enterprise_number, field_id, option)
+	type_id := TypeID{enterprise_number, field_id}
+	options, found := this.options[type_id]
 	if(!found) {
 		options = make(map[OptionScope]*Option, 256)
-		this.options[field_id] = options
+		this.options[type_id] = options
 	}
 	options[option.Scope] = option
 }
 
-func (this *basicSession) GetOption(field_id uint16, scope_type uint16, scope_index uint16) (*Option) {
-	options, found := this.options[field_id]
+func (this *basicSession) GetOption(enterprise_number uint32, field_id uint16, scope_type uint16, scope_index uint16) (*Option) {
+	options, found := this.options[TypeID{enterprise_number, field_id}]
 	if(!found) {
 		return nil
 	}
