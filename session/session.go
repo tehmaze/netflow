@@ -2,7 +2,6 @@
 // decoders that need to track templates bound to a session.
 package session
 
-import "fmt"
 import "sync"
 
 const (
@@ -116,7 +115,6 @@ func (s *basicSession) GetTemplate(id uint16) (t Template, found bool) {
 }
 
 func (this *basicSession) SetOption(enterprise_number uint32, field_id uint16, option *Option) {
-	fmt.Printf("basicSession::SetOption(): (%d, %d) = %v\n", enterprise_number, field_id, option)
 	type_id := TypeID{enterprise_number, field_id}
 	options, found := this.options[type_id]
 	if(!found) {
