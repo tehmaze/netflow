@@ -21,57 +21,69 @@ func NewTranslate(s session.Session) *Translate {
 	return &Translate{translate.NewTranslate(s)}
 }
 
-func (t *Translate) Record(dr *DataRecord) error {
+func (t *Translate) Record(dr *DataRecord, tm session.Template) error {
 	if t.Session == nil {
 		return nil
 	}
-	var (
-		tm session.Template
-		tr TemplateRecord
-		ok bool
-	)
 	t.Session.RLock()
-	tm, ok = t.Session.GetTemplate(dr.TemplateID)
+	tm, ok := t.Session.GetTemplate(dr.TemplateID)
 	t.Session.RUnlock()
 	if !ok {
-		if debug {
+		if(debug) {
 			debugLog.Printf("no template for id=%d, can't translate field\n", dr.TemplateID)
 		}
 		return nil
 	}
-	if tr, ok = tm.(TemplateRecord); !ok {
-		return nil
-	}
-	if tr.Fields == nil {
-		if debug {
+	fields := tm.GetFields()
+	if fields == nil {
+		if(debug) {
 			debugLog.Printf("no fields in template id=%d, can't translate\n", dr.TemplateID)
 		}
 		return nil
 	}
 
-	if debug {
-		debugLog.Printf("translating %d/%d fields\n", len(dr.Fields), len(tr.Fields))
+	if(debug) {
+		debugLog.Printf("translating %d/%d fields\n", len(fields), len(dr.Fields))
 	}
 
-	for i, field := range tr.Fields {
+	option_template, is_option := tm.(*OptionsTemplateRecord)
+	if(is_option) {
+		dr.OptionScopes = make(Fields, len(option_template.ScopeFields))
+		for i, field := range option_template.ScopeFields {
+			t.translate_field(&dr.OptionScopes[i], field)
+		}
+	}
+
+	for i, field := range fields {
 		if i > len(dr.Fields) {
 			break
 		}
-		f := &dr.Fields[i]
-		f.Translated = &TranslatedField{}
-		f.Translated.EnterpriseNumber = field.EnterpriseNumber
-		f.Translated.InformationElementID = field.InformationElementID
 
-		if element, ok := t.Translate.Key(translate.Key{field.EnterpriseNumber, field.InformationElementID}); ok {
-			f.Translated.Name = element.Name
-			f.Translated.Value = translate.Bytes(dr.Fields[i].Bytes, element.Type)
-			if debug {
-				debugLog.Printf("translated {%d, %d} to %s, %v\n", field.EnterpriseNumber, field.InformationElementID, f.Translated.Name, f.Translated.Value)
-			}
-		} else if debug {
-			debugLog.Printf("no translator element for {%d, %d}\n", field.EnterpriseNumber, field.InformationElementID)
+		t.translate_field(&dr.Fields[i], field.(FieldSpecifier))
+	}
+
+	return nil
+}
+
+func (this *Translate) translate_field(f *Field, fs FieldSpecifier) error {
+	f.Translated = &TranslatedField{
+		EnterpriseNumber: fs.EnterpriseNumber,
+		InformationElementID: fs.InformationElementID,
+	}
+
+	element, ok := this.Translate.Key(translate.Key{fs.EnterpriseNumber, fs.InformationElementID})
+	if(ok) {
+		f.Translated.Name = element.Name
+		f.Translated.Value = translate.Bytes(f.Bytes, element.Type)
+		if(debug) {
+			debugLog.Printf("translated {%d, %d} (%v) to %s, %v\n", fs.EnterpriseNumber, fs.InformationElementID, f.Bytes, f.Translated.Name, f.Translated.Value)
+		}
+	} else {
+		if(debug) {
+			debugLog.Printf("no translator element for {%d, %d}\n", fs.EnterpriseNumber, fs.InformationElementID)
 		}
 	}
 
 	return nil
 }
+
