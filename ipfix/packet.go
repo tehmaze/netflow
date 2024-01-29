@@ -592,7 +592,7 @@ type DataRecord struct {
 }
 
 func (dr *DataRecord) Unmarshal(r io.Reader, fss FieldSpecifiers, t *Translate) error {
-	dr.Fields = make(Fields, 0)
+	dr.Fields = make(Fields, 0, len(fss))
 	var err error
 	for i := 0; i < len(fss); i++ {
 		f := Field{}
