@@ -4,14 +4,65 @@ package session
 
 import "sync"
 
+const (
+	SCOPE_SYSTEM = 1
+	SCOPE_INTERFACE = 2
+	SCOPE_LINECARD = 3
+	SCOPE_NETFLOWCACHE = 4
+	SCOPE_TEMPLATE = 5
+)
+
+var ScopeTypes = map[uint16]string{
+	SCOPE_SYSTEM       : "System",
+	SCOPE_INTERFACE    : "Interface",
+	SCOPE_LINECARD     : "Line card",
+	SCOPE_NETFLOWCACHE : "Netflow cache",
+	SCOPE_TEMPLATE     : "Template",
+}
+
+const (
+	OPTION_SAMPLER_ID = 48
+	OPTION_SAMPLER_MODE = 49
+	OPTION_SAMPLER_INTERVAL = 50
+)
+
+type TemplateFieldSpecifier interface {
+	GetType() uint16
+	GetLength() uint16
+}
+
 type Template interface {
 	ID() uint16
+	Size() int
+	GetFields() []TemplateFieldSpecifier
+}
+
+type Field interface {
+	GetType() uint16
+	GetLength() uint16
+	GetBytes() []byte
+}
+
+type TypeID struct {
+	EnterpriseNumber uint32
+	Type uint16
+}
+
+type OptionScope struct {
+	Type uint16
+	Index uint16
+}
+
+type Option struct {
+	TemplateID uint16
+	Scope OptionScope
+	EnterpriseNumber uint32
+	Type uint16
+	Value interface{}
+	Bytes []byte
 }
 
 type Session interface {
-	Lock()
-	Unlock()
-
 	// To keep track of maximum record sizes per template
 	GetRecordSize(uint16) (size int, found bool)
 	SetRecordSize(uint16, int)
@@ -19,28 +70,24 @@ type Session interface {
 	// To keep track of templates
 	AddTemplate(Template)
 	GetTemplate(uint16) (t Template, found bool)
+	SetOption(uint32, uint16, *Option)
+	GetOption(uint32, uint16, uint16, uint16) *Option
 }
 
 type basicSession struct {
-	mutex     *sync.Mutex
-	templates map[uint16]Template
-	sizes     map[uint16]int
+	templates_mutex sync.RWMutex
+	templates       map[uint16]Template
+	sizes           map[uint16]int
+	options_mutex   sync.RWMutex
+	options         map[TypeID]map[OptionScope]*Option
 }
 
 func New() *basicSession {
 	return &basicSession{
-		mutex:     &sync.Mutex{},
 		templates: make(map[uint16]Template, 65536),
 		sizes:     make(map[uint16]int, 65536),
+		options:   make(map[TypeID]map[OptionScope]*Option, 256),
 	}
-}
-
-func (s *basicSession) Lock() {
-	s.mutex.Lock()
-}
-
-func (s *basicSession) Unlock() {
-	s.mutex.Unlock()
 }
 
 func (s *basicSession) GetRecordSize(tid uint16) (size int, found bool) {
@@ -55,13 +102,50 @@ func (s *basicSession) SetRecordSize(tid uint16, size int) {
 }
 
 func (s *basicSession) AddTemplate(t Template) {
+	s.templates_mutex.Lock()
 	s.templates[t.ID()] = t
+	s.templates_mutex.Unlock()
 }
 
 func (s *basicSession) GetTemplate(id uint16) (t Template, found bool) {
+	s.templates_mutex.RLock()
 	t, found = s.templates[id]
+	s.templates_mutex.RUnlock()
 	return
+}
+
+func (this *basicSession) SetOption(enterprise_number uint32, field_id uint16, option *Option) {
+	this.options_mutex.Lock()
+	type_id := TypeID{enterprise_number, field_id}
+	options, found := this.options[type_id]
+	if(!found) {
+		options = make(map[OptionScope]*Option, 256)
+		this.options[type_id] = options
+	}
+	options[option.Scope] = option
+	this.options_mutex.Unlock()
+}
+
+func (this *basicSession) GetOption(enterprise_number uint32, field_id uint16, scope_type uint16, scope_index uint16) (*Option) {
+	this.options_mutex.RLock()
+	options, found := this.options[TypeID{enterprise_number, field_id}]
+	if(!found) {
+		this.options_mutex.RUnlock()
+		return nil
+	}
+	option, found := options[OptionScope{Type: scope_type, Index: scope_index}]
+	if(!found) {
+		// Try a system-level scope
+		option, found = options[OptionScope{Type: SCOPE_SYSTEM, Index: 0}]
+		if(!found) {
+			this.options_mutex.RUnlock()
+			return nil
+		}
+	}
+	this.options_mutex.RUnlock()
+	return option
 }
 
 // Test if basicSession is compliant
 var _ Session = (*basicSession)(nil)
+

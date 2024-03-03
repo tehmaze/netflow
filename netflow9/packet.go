@@ -33,6 +33,7 @@ type Packet struct {
 	TemplateFlowSets        []TemplateFlowSet
 	OptionsTemplateFlowSets []OptionsTemplateFlowSet
 	DataFlowSets            []DataFlowSet
+	OptionsDataFlowSets     []DataFlowSet
 }
 
 // PacketHeader is a Packet Header (RFC 3954 section 5.1)
@@ -59,8 +60,8 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 		// Read the next set header
 		header := FlowSetHeader{}
 		if err := header.Unmarshal(r); err != nil {
-			if debug {
-				debugLog.Println("failed to read flow set header:", err)
+			if(debug) {
+				debugLog.Printf("failed to read flow set header %d/%d: %s\n", (i + 1), p.Header.Count, err)
 			}
 			return err
 		}
@@ -100,16 +101,34 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 			p.TemplateFlowSets = append(p.TemplateFlowSets, tfs)
 
 		case 1: // Options Template FlowSet
+			var err error
 			ofs := OptionsTemplateFlowSet{}
 			ofs.Header = header
 
 			readSize := int(ofs.Header.Length) - ofs.Header.Len()
-			if readSize < 4 {
+			if(readSize < 4) {
+				debugLog.Printf("ofs: short read size of %d\n", readSize)
 				return io.ErrShortBuffer
 			}
+
 			data := make([]byte, readSize)
-			if _, err := r.Read(data); err != nil {
+			_, err = r.Read(data)
+			if(err != nil) {
+				debugLog.Printf("ofs: failed to read %d bytes: %v\n", readSize, err)
 				return err
+			}
+
+			err = ofs.UnmarshalRecords(bytes.NewBuffer(data))
+			if(err != nil) {
+				return err
+			}
+
+			if(debug) {
+				debugLog.Printf("ofs: unmarshaled %d records: %v\n", len(ofs.Records), ofs)
+			}
+
+			for _, record := range ofs.Records {
+				record.register(s)
 			}
 
 			records += 1
@@ -123,13 +142,15 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 				return io.ErrShortBuffer
 			}
 			data := make([]byte, int(dfs.Header.Length)-dfs.Header.Len())
+			if(debug) {
+				debugLog.Printf("Reading %d bytes for DataFlowSet\n", len(data))
+			}
 			if _, err := r.Read(data); err != nil {
 				return err
 			}
 
 			var (
 				tm session.Template
-				tr TemplateRecord
 				ok bool
 			)
 			// If we don't have a session, or no template to resolve the Data
@@ -141,25 +162,46 @@ func (p *Packet) UnmarshalFlowSets(r io.Reader, s session.Session, t *Translate)
 				dfs.Bytes = data
 				continue
 			}
-			if tm, ok = s.GetTemplate(header.ID); !ok {
-				if debug {
+			tm, ok = s.GetTemplate(header.ID)
+			if !ok {
+				if(debug) {
 					debugLog.Printf("no template for id=%d, storing %d raw bytes in data set\n", header.ID, len(data))
 				}
 				dfs.Bytes = data
 				continue
 			}
-			if tr, ok = tm.(TemplateRecord); !ok {
-				if debug {
-					debugLog.Printf("no template record, got %T, storing %d raw bytes in data set\n", tm, len(data))
-				}
-				dfs.Bytes = data
-				continue
-			}
-			if err := dfs.Unmarshal(bytes.NewBuffer(data), tr, t); err != nil {
+			err := dfs.Unmarshal(bytes.NewBuffer(data), tm, t)
+			if(err != nil) {
+				debugLog.Printf("Failed to unmarshal DataFlowSet: %s\n", err)
 				return err
 			}
 			records += uint16(len(dfs.Records))
-			p.DataFlowSets = append(p.DataFlowSets, dfs)
+			switch tm.(type) {
+				case *TemplateRecord:
+					p.DataFlowSets = append(p.DataFlowSets, dfs)
+				case *OptionTemplateRecord:
+					if(debug) {
+						debugLog.Printf("v9 data record with option template: %v\n", tm)
+					}
+					for _, record := range dfs.Records {
+						if(debug) {
+							debugLog.Printf("v9 option data record: %v\n", record)
+						}
+						for _, scope := range record.OptionScopes {
+							for _, field := range record.Fields {
+								s.SetOption(0, field.Type, &session.Option{
+									TemplateID: header.ID,
+									Scope: scope,
+									Bytes: field.Bytes,
+									EnterpriseNumber: 0,
+									Type: field.Type,
+									Value: field.Translated.Value,
+								})
+							}
+						}
+					}
+					p.OptionsDataFlowSets = append(p.OptionsDataFlowSets, dfs)
+			}
 		}
 	}
 
@@ -283,20 +325,26 @@ type TemplateRecord struct {
 	Fields     FieldSpecifiers
 }
 
-func (tr TemplateRecord) register(s session.Session) {
+func (tr *TemplateRecord) register(s session.Session) {
 	if s == nil {
 		return
 	}
 	if debug {
 		debugLog.Println("register template:", tr)
 	}
-	s.Lock()
-	defer s.Unlock()
 	s.AddTemplate(tr)
 }
 
 func (tr TemplateRecord) ID() uint16 {
 	return tr.TemplateID
+}
+
+func (this TemplateRecord) GetFields() []session.TemplateFieldSpecifier {
+	fs := make([]session.TemplateFieldSpecifier, len(this.Fields))
+	for i, v := range this.Fields {
+		fs[i] = v
+	}
+	return fs
 }
 
 func (tr TemplateRecord) String() string {
@@ -347,6 +395,14 @@ func (f *FieldSpecifier) Unmarshal(r io.Reader) error {
 	return nil
 }
 
+func (this FieldSpecifier) GetType() uint16 {
+	return this.Type
+}
+
+func (this FieldSpecifier) GetLength() uint16 {
+	return this.Length
+}
+
 type FieldSpecifiers []FieldSpecifier
 
 func (fs FieldSpecifiers) String() string {
@@ -395,6 +451,151 @@ func (fs *FieldSpecifiers) Unmarshal(r io.Reader) error {
 //   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 type OptionsTemplateFlowSet struct {
 	Header FlowSetHeader
+	Records []OptionTemplateRecord
+	Bytes []byte
+}
+
+func (this *OptionsTemplateFlowSet) UnmarshalRecords(r io.Reader) error {
+	buffer := new(bytes.Buffer)
+	if _, err := buffer.ReadFrom(r); err != nil {
+		return err
+	}
+
+	// As long as there are more than 4 bytes in the buffer, we parse the next
+	// TemplateRecord, otherwise it's padding.
+	this.Records = make([]OptionTemplateRecord, 0)
+	for buffer.Len() > 4 {
+		record := OptionTemplateRecord{}
+		if err := record.Unmarshal(buffer); err != nil {
+			return err
+		}
+
+		this.Records = append(this.Records, record)
+	}
+
+	return nil
+}
+
+type OptionTemplateRecord struct {
+	TemplateID    uint16
+	ScopeLength   uint16
+	OptionsLength uint16
+	Scopes        ScopeSpecifiers
+	Options       FieldSpecifiers
+}
+
+func (this *OptionTemplateRecord) register(s session.Session) {
+	if(s == nil) {
+		return
+	}
+	if(debug) {
+		debugLog.Println("register option template:", this)
+	}
+	s.AddTemplate(this)
+}
+
+func (this OptionTemplateRecord) ID() uint16 {
+	return this.TemplateID
+}
+
+func (this OptionTemplateRecord) GetFields() []session.TemplateFieldSpecifier {
+	l := len(this.Options)
+	fs := make([]session.TemplateFieldSpecifier, l)
+	for i, v := range this.Options {
+		fs[i] = v
+	}
+	return fs
+}
+
+func (this OptionTemplateRecord) Size() int {
+	var size int
+	for _, scope := range this.Scopes {
+		size += int(scope.Length)
+	}
+	for _, option := range this.Options {
+		size += int(option.Length)
+	}
+	return size
+}
+
+func (this *OptionTemplateRecord) Unmarshal(r io.Reader) error {
+	var err error
+
+	err = read.Uint16(&this.TemplateID, r)
+	if(err != nil) {
+		return err
+	}
+
+	err = read.Uint16(&this.ScopeLength, r)
+	if(err != nil) {
+		return err
+	}
+
+	err = read.Uint16(&this.OptionsLength, r)
+	if(err != nil) {
+		return err
+	}
+
+	this.Scopes = make(ScopeSpecifiers, this.ScopeLength / 4)
+	err = this.Scopes.Unmarshal(r)
+	if(err != nil) {
+		return err
+	}
+
+	this.Options = make(FieldSpecifiers, this.OptionsLength / 4)
+	err = this.Options.Unmarshal(r)
+	if(err != nil) {
+		return err
+	}
+
+	return nil
+}
+
+type ScopeSpecifier struct {
+	Type   uint16
+	Length uint16
+}
+
+func (this *ScopeSpecifier) String() string {
+	return fmt.Sprintf("type=%d length=%d", this.Type, this.Length)
+}
+
+func (this *ScopeSpecifier) Unmarshal(r io.Reader) error {
+	if err := read.Uint16(&this.Type, r); err != nil {
+		return err
+	}
+	if err := read.Uint16(&this.Length, r); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (this ScopeSpecifier) GetType() uint16 {
+	return this.Type
+}
+
+func (this ScopeSpecifier) GetLength() uint16 {
+	return this.Length
+}
+
+type ScopeSpecifiers []ScopeSpecifier
+
+func (this ScopeSpecifiers) String() string {
+	v := make([]string, len(this))
+	for i, scope := range this {
+		v[i] = scope.String()
+	}
+	return strings.Join(v, ",")
+}
+
+func (this *ScopeSpecifiers) Unmarshal(r io.Reader) error {
+	for i := 0; i < len(*this); i++ {
+		if err := (*this)[i].Unmarshal(r); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type DataFlowSet struct {
@@ -403,15 +604,15 @@ type DataFlowSet struct {
 	Bytes   []byte
 }
 
-func (dfs *DataFlowSet) Unmarshal(r io.Reader, tr TemplateRecord, t *Translate) error {
+func (dfs *DataFlowSet) Unmarshal(r io.Reader, template session.Template, t *Translate) error {
 	buffer := new(bytes.Buffer)
 	buffer.ReadFrom(r)
 
 	dfs.Records = make([]DataRecord, 0)
 	for buffer.Len() >= 4 { // Continue until only padding alignment bytes left
 		var dr = DataRecord{}
-		dr.TemplateID = tr.TemplateID
-		if err := dr.Unmarshal(bytes.NewBuffer(buffer.Next(tr.Size())), tr.Fields, t); err != nil {
+		dr.TemplateID = template.ID()
+		if err := dr.Unmarshal(bytes.NewBuffer(buffer.Next(template.Size())), template.GetFields(), t); err != nil {
 			return err
 		}
 		dfs.Records = append(dfs.Records, dr)
@@ -421,11 +622,12 @@ func (dfs *DataFlowSet) Unmarshal(r io.Reader, tr TemplateRecord, t *Translate) 
 }
 
 type DataRecord struct {
-	TemplateID uint16
-	Fields     Fields
+	TemplateID   uint16
+	OptionScopes []session.OptionScope
+	Fields       Fields
 }
 
-func (dr *DataRecord) Unmarshal(r io.Reader, fss FieldSpecifiers, t *Translate) error {
+func (dr *DataRecord) Unmarshal(r io.Reader, fss []session.TemplateFieldSpecifier, t *Translate) error {
 	// We don't know how many records there are in a Data Set, so we'll keep
 	// reading until we exhausted the buffer.
 	buffer := new(bytes.Buffer)
@@ -437,8 +639,8 @@ func (dr *DataRecord) Unmarshal(r io.Reader, fss FieldSpecifiers, t *Translate) 
 	var err error
 	for i := 0; buffer.Len() > 0 && i < len(fss); i++ {
 		f := Field{
-			Type:   fss[i].Type,
-			Length: fss[i].Length,
+			Type:   fss[i].GetType(),
+			Length: fss[i].GetLength(),
 		}
 		if err = f.Unmarshal(buffer); err != nil {
 			return err
@@ -455,6 +657,18 @@ func (dr *DataRecord) Unmarshal(r io.Reader, fss FieldSpecifiers, t *Translate) 
 	return nil
 }
 
+func (this *DataRecord) GetTemplateID() uint16 {
+	return this.TemplateID
+}
+
+func (this *DataRecord) GetScopes() []session.OptionScope {
+	return this.OptionScopes
+}
+
+func (this *DataRecord) GetFields() Fields {
+	return this.Fields
+}
+
 type Field struct {
 	Type       uint16
 	Length     uint16
@@ -469,6 +683,22 @@ func (f *Field) Unmarshal(r io.Reader) error {
 	}
 
 	return nil
+}
+
+func (this *Field) GetType() uint16 {
+	return this.Type
+}
+
+func (this *Field) GetLength() uint16 {
+	return this.Length
+}
+
+func (this *Field) GetTranslated() *TranslatedField {
+	return this.Translated
+}
+
+func (this *Field) GetBytes() []byte {
+	return this.Bytes
 }
 
 type Fields []Field

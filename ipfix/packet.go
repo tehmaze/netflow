@@ -45,6 +45,7 @@ type Message struct {
 	TemplateSets        []TemplateSet
 	OptionsTemplateSets []OptionsTemplateSet
 	DataSets            []DataSet
+	OptionsDataSets     []DataSet
 }
 
 // UnmarshalSets will, based on the Message length, unmarshal all sets in the
@@ -108,6 +109,10 @@ func (m *Message) UnmarshalSets(r io.Reader, s session.Session, t *Translate) er
 			}
 			m.OptionsTemplateSets = append(m.OptionsTemplateSets, ots)
 
+			for _, record := range ots.Records {
+				record.register(s)
+			}
+
 		case header.ID >= 4 && header.ID <= 255:
 			if debug {
 				debugLog.Println("received reserved set id", header.ID)
@@ -120,7 +125,6 @@ func (m *Message) UnmarshalSets(r io.Reader, s session.Session, t *Translate) er
 
 			var (
 				tm session.Template
-				tr TemplateRecord
 				ok bool
 			)
 			// If we don't have a session, or no template to resolve the Data
@@ -132,24 +136,56 @@ func (m *Message) UnmarshalSets(r io.Reader, s session.Session, t *Translate) er
 				ds.Bytes = data
 				continue
 			}
-			if tm, ok = s.GetTemplate(header.ID); !ok {
+			tm, ok = s.GetTemplate(header.ID)
+			if !ok {
 				if debug {
 					debugLog.Printf("no template for id=%d, storing %d raw bytes in data set\n", header.ID, len(data))
 				}
 				ds.Bytes = data
 				continue
 			}
-			if tr, ok = tm.(TemplateRecord); !ok {
-				if debug {
-					debugLog.Printf("no template record, got %T, storing %d raw bytes in data set\n", tm, len(data))
-				}
-				ds.Bytes = data
-				continue
-			}
-			if err := ds.Unmarshal(bytes.NewBuffer(data), tr, t); err != nil {
+
+			err := ds.Unmarshal(bytes.NewBuffer(data), tm, t)
+			if(err != nil) {
 				return err
 			}
-			m.DataSets = append(m.DataSets, ds)
+
+			switch tm.(type) {
+				case *TemplateRecord:
+					m.DataSets = append(m.DataSets, ds)
+				case *OptionsTemplateRecord:
+					if(debug) {
+						debugLog.Printf("ipfix data record with option template: %v\n", tm)
+					}
+					for _, record := range ds.Records {
+						if(debug) {
+							debugLog.Printf("ipfix option data record: %v\n", record)
+						}
+						for range record.OptionScopes {
+							for _, field := range record.Fields {
+								if(debug) {
+									debugLog.Printf(
+										"ipfix option: en %d, type %d, template id %d, scope %d:%d, value %v",
+										field.Translated.EnterpriseNumber,
+										field.Translated.InformationElementID,
+										header.ID,
+										1, 0, // TODO: Implement this for realsies
+										field.Translated.Value,
+									)
+								}
+								s.SetOption(field.Translated.EnterpriseNumber, field.Translated.InformationElementID, &session.Option{
+									TemplateID: header.ID,
+									Scope: session.OptionScope{1, 0}, // TODO:  Once again, implement this for realsies
+									Bytes: field.Bytes,
+									EnterpriseNumber: field.Translated.EnterpriseNumber,
+									Type: field.Translated.InformationElementID,
+									Value: field.Translated.Value,
+								})
+							}
+						}
+					}
+					m.OptionsDataSets = append(m.OptionsDataSets, ds)
+			}
 		}
 	}
 
@@ -216,6 +252,14 @@ type FieldSpecifier struct {
 	Length               uint16
 	EnterpriseNumber     uint32
 	EnterpriseBitSet     bool
+}
+
+func (this FieldSpecifier) GetType() uint16 {
+	return this.InformationElementID
+}
+
+func (this FieldSpecifier) GetLength() uint16 {
+	return this.Length
 }
 
 // IsEnterprise checks if the Enterprise bit (RFC RFC 7011 section 3.2) is set.
@@ -419,15 +463,13 @@ type TemplateRecord struct {
 	Fields     FieldSpecifiers
 }
 
-func (tr TemplateRecord) register(s session.Session) {
+func (tr *TemplateRecord) register(s session.Session) {
 	if s == nil {
 		return
 	}
-	if debug {
+	if(debug) {
 		debugLog.Println("register template:", tr)
 	}
-	s.Lock()
-	defer s.Unlock()
 	s.AddTemplate(tr)
 }
 
@@ -440,6 +482,22 @@ func (tr TemplateRecord) Bytes() []byte {
 
 func (tr TemplateRecord) ID() uint16 {
 	return tr.TemplateID
+}
+
+func (tr TemplateRecord) Size() int {
+	var size int
+	for _, f := range tr.Fields {
+		size += int(f.Length)
+	}
+	return size
+}
+
+func (this TemplateRecord) GetFields() []session.TemplateFieldSpecifier {
+	fs := make([]session.TemplateFieldSpecifier, len(this.Fields))
+	for i, v := range this.Fields {
+		fs[i] = v
+	}
+	return fs
 }
 
 func (tr TemplateRecord) Len() int {
@@ -472,7 +530,7 @@ type OptionsTemplateSet struct {
 }
 
 func (ots OptionsTemplateSet) String() string {
-	return fmt.Sprintf("%s (%d records)", ots.Header, len(ots.Records))
+	return fmt.Sprintf("%s (%d records): %v", ots.Header, len(ots.Records), ots.Records)
 }
 
 func (ots *OptionsTemplateSet) UnmarshalRecords(r io.Reader) error {
@@ -514,6 +572,47 @@ type OptionsTemplateRecord struct {
 	// Fields. The Scope Field Count MUST NOT be zero.
 	ScopeFieldCount uint16
 	ScopeFields     FieldSpecifiers
+}
+
+func (this OptionsTemplateRecord) ID() uint16 {
+	return this.TemplateID
+}
+
+func (this OptionsTemplateRecord) GetFields() []session.TemplateFieldSpecifier {
+	fs := make([]session.TemplateFieldSpecifier, len(this.Fields))
+	for i, v := range this.Fields {
+		fs[i] = v
+	}
+	return fs
+}
+
+func (this OptionsTemplateRecord) GetScopeFields() []session.TemplateFieldSpecifier {
+	fields := make([]session.TemplateFieldSpecifier, len(this.ScopeFields))
+	for i, v := range this.ScopeFields {
+		fields[i] = v
+	}
+	return fields
+}
+
+func (this OptionsTemplateRecord) Size() int {
+	var size int
+	for _, field := range this.Fields {
+		size += int(field.Length)
+	}
+	for _, field := range this.ScopeFields {
+		size += int(field.Length)
+	}
+	return size
+}
+
+func (this *OptionsTemplateRecord) register(s session.Session) {
+	if s == nil {
+		return
+	}
+	if debug {
+		debugLog.Println("register options template:", this)
+	}
+	s.AddTemplate(this)
 }
 
 func (otr OptionsTemplateRecord) String() string {
@@ -561,17 +660,18 @@ type DataSet struct {
 	Records []DataRecord
 }
 
-func (ds *DataSet) Unmarshal(r io.Reader, tr TemplateRecord, t *Translate) error {
+func (ds *DataSet) Unmarshal(r io.Reader, template session.Template, t *Translate) error {
 	// We don't know how many records there are in a Data Set, so we'll keep
 	// reading until we exhausted the buffer.
 	buffer := new(bytes.Buffer)
 	buffer.ReadFrom(r)
 
 	ds.Records = make([]DataRecord, 0)
+	var err error
 	for buffer.Len() > 0 {
 		var dr = DataRecord{}
-		dr.TemplateID = tr.TemplateID
-		if err := dr.Unmarshal(buffer, tr.Fields, t); err != nil {
+		dr.TemplateID = template.ID()
+		if err = dr.Unmarshal(buffer, template, t); err != nil {
 			// If we hit EOF, we've exhausted the buffer. The current DataRecord is discarded,
 			// and we exit normally.
 			if err == io.EOF {
@@ -587,23 +687,37 @@ func (ds *DataSet) Unmarshal(r io.Reader, tr TemplateRecord, t *Translate) error
 }
 
 type DataRecord struct {
-	TemplateID uint16
-	Fields     Fields
+	TemplateID   uint16
+	OptionScopes Fields
+	Fields       Fields
 }
 
-func (dr *DataRecord) Unmarshal(r io.Reader, fss FieldSpecifiers, t *Translate) error {
-	dr.Fields = make(Fields, 0, len(fss))
+func (dr *DataRecord) Unmarshal(r io.Reader, template session.Template, t *Translate) error {
 	var err error
+
+	option_template, is_option := template.(*OptionsTemplateRecord)
+	if(is_option) {
+		dr.OptionScopes = make(Fields, len(option_template.ScopeFields))
+		for i := 0; i < len(dr.OptionScopes); i++ {
+			err = dr.OptionScopes[i].Unmarshal(r, option_template.ScopeFields[i])
+			if(err != nil) {
+				return err
+			}
+		}
+	}
+
+	fss := template.GetFields()
+	dr.Fields = make(Fields, len(fss))
 	for i := 0; i < len(fss); i++ {
 		f := Field{}
 		if err = f.Unmarshal(r, fss[i]); err != nil {
 			return err
 		}
-		dr.Fields = append(dr.Fields, f)
+		dr.Fields[i] = f
 	}
 
 	if t != nil && len(dr.Fields) > 0 {
-		if err := t.Record(dr); err != nil {
+		if err := t.Record(dr, template); err != nil {
 			return err
 		}
 	}
@@ -616,13 +730,13 @@ type Field struct {
 	Translated *TranslatedField
 }
 
-func (f *Field) Unmarshal(r io.Reader, fs FieldSpecifier) error {
-	if fs.Length == VariableLength {
+func (f *Field) Unmarshal(r io.Reader, fs session.TemplateFieldSpecifier) error {
+	if fs.GetLength() == VariableLength {
 		var err error
 		f.Bytes, err = read.VariableLength(f.Bytes, r)
 		return err
 	} else {
-		f.Bytes = make([]byte, fs.Length)
+		f.Bytes = make([]byte, fs.GetLength())
 		_, err := r.Read(f.Bytes)
 		return err
 	}
